@@ -1,0 +1,174 @@
+#!/bin/bash
+
+#SrcList - список заданий архивирования
+#В данном списке по кадому источнику архивации заполняется 4 строчки:
+#	1) путь к папке истоника архивации (что архивируем)
+#	2) шаблон имени архива - шаблон это полный путь к архивк в конец  будет добавлена дата арихива для получения полного имени
+#		(если надо разные источники архивации складывать 
+#	   в одну папку то куазываем эту папку одинаков несколько раз)
+#			
+#	3) путь к скрипту дополнительной обработки архива, который исполнится в случае удачного создания архива
+#	   если ни чего обрабатывать не надо то пишем "no"
+#	   В скрипт можно передать следующие параметры:
+#		$SrcPath - путь источника удачно выполненного архива
+#		$ArchTemplate - шаблон имени архива	
+#		$ArchPath - путь к удачно выполненному архиву
+#	4) сторка дополнительных параметров с разделителем |
+#		a) максимальное количество хранимых архивов
+#		c) максимальный суммарный размер хранимых архивов в байтах (необязательный параметр)
+#		d) минимальное количество хранимых архивов 
+#		(это необязательный параметр, если опущен то то равен 1 используется при указанном параметре "c")
+#
+#Пример:
+# SrcList="/var/lib/plexmediaserver
+# /mnt/NAS/Plex/plexSettings-
+#
+# 40
+# /usr/plex
+# /mnt/NAS/Plex/plexProg-
+#
+# 20|125000000|3
+# /home/user/temp
+# /mnt/NAS/НomeUserTemp/HomeUserTemp-
+# /home/user/DelAllFIles $SrcPath
+# 3"
+
+SrcList="/var/lib/plexmediaserver
+/mnt/NAS/Plex/plexSettings-
+no
+40
+/usr/plex
+/mnt/NAS/Plex/plexProg-
+no
+20|125000000|3
+/home/user/temp
+/mnt/NAS/НomeUserTemp/HomeUserTemp-
+/home/user/DelAllFIles $SrcPath
+3"
+
+#Файл лога архивации последней сессии
+BackupLog="/var/log/FileBackup.log"
+ErrorLog="/var/log/FileBackupERROR.log"
+
+#Почтовый адрес куда слать логи с неудачными попытками резервного копирования
+EmailAddress="andrey@mibra.ru"
+
+#Удаляем временный лог файл если они есть 
+if [ -e "$BackupLogPath" ]; then rm $BackupLogPath ; fi
+
+#Флаг  нормального завершения всей процедуры резервного копирования
+flagOKGlobal=true
+
+#Очищаем старый лог файл если он есть
+cat /dev/null > $BackupLog
+if [ $? -eq 0 ];
+then 
+	printf `(date +%Y-%m-%d-%H-%M-%S)`": Файл лога предыдущей сессии успешно удален \n" >> $BackupLog
+else
+	echo "Не возможно очистить лог сессии выполнения задания резервного копирования - задание остановленно !!!"
+	flagOKGlobal=false
+fi
+
+
+if ( $flagOKGlobal );
+then
+	#Флаг для того чтобы в одном цикле считывать поочереди первую и вторую строку для каждого источника архивирования
+	SrcListStringIterator="0"
+	#Цикл перебора баз данных
+	IFS=$'\n'; for NextListElement in $SrcList;
+	do
+		case $SrcListStringIterator in
+			"1"|"0" )
+			SrcPath=$NextListElement
+			SrcListStringIterator="2"
+				;;
+
+			"2" )
+			ArchTemplate=$NextListElement
+			SrcListStringIterator="3"
+				;;
+
+			"3" )
+			ScriptParh=$NextListElement
+			SrcListStringIterator="4"
+				;;	
+
+			"4" )
+			ExtParams=$NextListElement
+			SrcListStringIterator="1"
+			
+			#Разбираем строку дополнительных параетров
+			MaxArhMun=0
+			MaxArhSize=0
+			MinArhNum=1
+			ExtParamsStringIterator="0"
+			
+			IFS=$'|'; for NextParam in $ExtParams; 
+			do
+			 	case $ExtParamsStringIterator in
+			 		"1"|"0" )
+					ExtParamsStringIterator="2"
+					MaxArhMun=$NextParam
+			 			;;
+			 		"2" )
+					ExtParamsStringIterator="3"
+					MaxArhSize=$NextParam
+			 			;;
+			 		"3" )
+					MinArhNum=$NextParam
+			 			;;	
+			 	esac
+			done 
+
+			#Формируем имя архива
+			printf "\n" >> $BackupLog
+			ArchPath=$ArchTemplate`(date +%Y-%m-%d-%H-%M-%S)`".tar.gz"
+
+			if [ -a FILE ]; 
+			then
+				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА "$ArchPath" Архив с таким именем уже существует - архив не создан \n" >> $BackupLog
+
+				flagOKGlobal=false
+			else
+				printf `(date +%Y-%m-%d-%H-%M-%S)`": Начинаем создавать архив "$ArchPath" из источника "$SrcPath" \n" >> $BackupLog
+				#tar -cvzpf $ArchPath $SrcPath >> $BackupLog
+
+				#Проверяем удачно ли произошло архивирование
+				if [ $? -eq 0 ];
+				then
+					printf `(date +%Y-%m-%d-%H-%M-%S)`": Архив "$ArchPath" успешно создан \n" >> $BackupLog
+
+					###Удаление старых архивов
+
+					###Выполняем внешний скрипт, если это необходимо
+
+				else
+					printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА "$ArchPath" Процесс создания архива прошел с ошибками \n" >> $BackupLog
+					flagOKGlobal=false
+				fi 
+
+			fi
+			
+
+			
+
+			echo "Источник" $SrcPath " получатель " $ArchPath " скрипт " $ScriptParh "MaxArhMun="$MaxArhMun "MaxArhSize="$MaxArhSize "MinArhNum="$MinArhNum
+				;;	
+		esac
+	done
+
+	#Если все процессы архивирования прошли успешно, то очищаем лог ошибок. Если нет то отправляем лог текушей сессии с сообщением о ошибке по электронной почте 
+	#и добавляем содержимое текущего лога в лог о ошибках
+	if ( $flagOKGlobal );
+	then
+		printf "\n" >> $BackupLog
+		printf `(date +%Y-%m-%d-%H-%M-%S)`": ВСЕ ЗАДАНИЯ АРХИВИРОВАНИЯ ВЫПОЛНЕННЫ УСПЕШНО" >> $BackupLog
+		cat /dev/null > $ErrorLog
+	else
+		printf "\n" >> $BackupLog
+		printf `(date +%Y-%m-%d-%H-%M-%S)`": ЗАДАНИЯ АРХИВИРОВАНИЯ ВЫПОЛНЕННЫ С ОШИБКАМИ !!! \n" >> $BackupLog
+		printf "____________________________________________\n" >> $ErrorLog
+		cat $BackupLog > $ErrorLog
+		###отправляем $BackupLog по электронной почте с сообщение о ошибке
+	fi
+fi	
