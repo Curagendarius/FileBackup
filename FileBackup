@@ -1,11 +1,10 @@
 #!/bin/bash
 
 #SrcList - список заданий архивирования
-#В данном списке по кадому источнику архивации заполняется 4 строчки:
-#	1) путь к папке истоника архивации (что архивируем)
-#	2) шаблон имени архива - шаблон это полный путь к архивк в конец  будет добавлена дата арихива для получения полного имени
-#		(если надо разные источники архивации складывать 
-#	   в одну папку то куазываем эту папку одинаков несколько раз)
+#В данном списке по каждому источнику архивации заполняется следующие строки:
+#	1) путь к папке источника архивации (что архивируем)
+#	2) путь к папке куда будем складывать архивы
+#	2) шаблон имени архива. К шаблогу будет добавлен суфикс типа (Daily, Weekly, Monthly) архива и дата арихива для получения имени архива
 #			
 #	3) путь к скрипту дополнительной обработки архива, который исполнится в случае удачного создания архива
 #	   если ни чего обрабатывать не надо то пишем "no"
@@ -14,37 +13,32 @@
 #		$ArchTemplate - шаблон имени архива	
 #		$ArchPath - путь к удачно выполненному архиву
 #	4) сторка дополнительных параметров с разделителем |
-#		a) максимальное количество хранимых архивов
-#		c) максимальный суммарный размер хранимых архивов в байтах (необязательный параметр)
-#		d) минимальное количество хранимых архивов 
-#		(это необязательный параметр, если опущен то то равен 1 используется при указанном параметре "c")
+#		a) количество ежедневных копий
+#		c) количество еженедельных копий (необязательный параметр)
+#		d) количество ежемесячных копий (необязательный параметр)
 #
 #Пример:
 # SrcList="/var/lib/plexmediaserver
-# /mnt/NAS/Plex/plexSettings-
+# /mnt/BackUp/Plex/
+# plexSettings
 #
 # 40
 # /usr/plex
-# /mnt/NAS/Plex/plexProg-
+# /mnt/Bаckup/Plex/
+# plexProg
 #
-# 20|125000000|3
+# 4|4|6
 # /home/user/temp
-# /mnt/NAS/НomeUserTemp/HomeUserTemp-
+# /mnt/Backup/НomeUserTemp/
+# HomeUserTemp
 # /home/user/DelAllFIles $SrcPath
 # 3"
 
-SrcList="/var/lib/plexmediaserver
-/mnt/NAS/Plex/plexSettings-
+SrcList="/var/log
+/Volumes/CuraDisk/test
+mytest
 no
-40
-/usr/plex
-/mnt/NAS/Plex/plexProg-
-no
-20|125000000|3
-/home/user/temp
-/mnt/NAS/НomeUserTemp/HomeUserTemp-
-/home/user/DelAllFIles $SrcPath
-3"
+3|2|2"
 
 #Файл лога архивации последней сессии
 BackupLog="/var/log/FileBackup.log"
@@ -84,23 +78,29 @@ then
 				;;
 
 			"2" )
-			ArchTemplate=$NextListElement
+			ArchPath=$NextListElement
 			SrcListStringIterator="3"
 				;;
 
 			"3" )
-			ScriptParh=$NextListElement
+			ArchTemplate=$NextListElement
 			SrcListStringIterator="4"
-				;;	
+				;;
 
 			"4" )
+			ScriptParh=$NextListElement
+			SrcListStringIterator="5"
+				;;	
+
+			"5" )
 			ExtParams=$NextListElement
 			SrcListStringIterator="1"
-			
+
 			#Разбираем строку дополнительных параетров
-			MaxArhMun=0
-			MaxArhSize=0
-			MinArhNum=1
+			ArhNumDaily=0
+			ArhNumWeekly=0
+			ArhNumMonthly=0
+			ArhSufix=""
 			ExtParamsStringIterator="0"
 			
 			IFS=$'|'; for NextParam in $ExtParams; 
@@ -108,28 +108,97 @@ then
 			 	case $ExtParamsStringIterator in
 			 		"1"|"0" )
 					ExtParamsStringIterator="2"
-					MaxArhMun=$NextParam
+					ArhNumDaily=$NextParam
 			 			;;
 			 		"2" )
 					ExtParamsStringIterator="3"
-					MaxArhSize=$NextParam
+					ArhNumWeekly=$NextParam
 			 			;;
 			 		"3" )
-					MinArhNum=$NextParam
+					ArhNumMonthly=$NextParam
 			 			;;	
 			 	esac
 			done 
 
+			#Если последним символом каталога назначения не является "/" то добавляем его
+			if [ ${ArchPath:(-1):1} != "/" ]; 
+			then
+				ArchPath=$ArchPath"/"
+			fi
+
+			#Если источник недоступен для чтения, то ошибка создания архива
+			if [  ! -r $SrcPath ]; 
+			then
+				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" Источник "$SrcPath" не доступен для чтения \n" >> $BackupLog
+
+				flagOKGlobal=false
+			fi
+
+			#Если каталог назначения недоступен для записи, то ошибка содания архива
+			if [  ! -w $ArchPath ] | [  ! -d $ArchPath ]; 
+			then
+				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" Каталог "$ArchPath" не доступен для записи или не явлется каталогом \n" >> $BackupLog
+
+				flagOKGlobal=false
+			fi
+
 			#Формируем имя архива
 			printf "\n" >> $BackupLog
-			ArchPath=$ArchTemplate`(date +%Y-%m-%d-%H-%M-%S)`".tar.gz"
 
+			#Ищем имя самого последнего ежемесячного архива 
+			OldEndMonthlyArh=`ls -t $ArchPath$ArchTemplate"-monthly"* -print 2>/dev/null | head -1`
+			
+			#Проверяем а есть ли вообще последний ежемесячный архив
+			if [ $OldEndMonthlyArh ]; 
+			then
+				#Если у нового архива месяц новый и ArhNumMonthly>0 то суфикс имени архива будет monthly
+				if [ ${OldEndMonthlyArh:(-24):2} != `date +%m` ] && [ $ArhNumMonthly -gt 0 ]; 
+				then
+					ArhSufix="monthly"
+				fi
+			fi
+
+			#Ищем имя самого последнего еженедельного архива
+			OldEndWeeklyArh=`ls -t $ArchPath$ArchTemplate"-weekly"* -print 2>/dev/null | head -1`
+
+			#Проверяем а есть ли вообще последний ежемесячный архив
+			if [ $OldEndWeeklyArh ]; 
+			then
+				#Если неделя изменилась, а ArсhSufix="" и ArсhNumWeekly>0 то суфикс имени архива будет weekly 
+				if [ ${OldEndWeeklyArh:(-18):2} != `date +%U` ] && [ $ArhNumWeekly -gt 0 ] && [ ! $ArhSufix ]; 
+				then
+					ArhSufix="weekly"
+				fi
+			fi
+
+			#Если ArсhSufix="" и ArсhNumDaily>0 то суфикс имени архива будет daily
+			if [ $ArhNumDaily -gt 0 ] && [ ! $ArhSufix ]; 
+			then
+				ArhSufix="daily"
+			fi
+
+			#Если суфикс архива не определен то ошибка задачи параметров архива
+			if [ ! $ArhSufix ]; 
+			then
+				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА "$ArchPath" Не задано нулевое количество архивов \n" >> $BackupLog
+
+				flagOKGlobal=false
+			fi
+
+			#Иначе генерируем имя нового архива и запускаем архивацию
+			ArchPath=$ArchTemplate"-"$ArhSufix"-"`(date +%Y-%m-%d-%U-%H_%M_%S)`".tar.gz"
+
+			#Если файл с таким именем архива существует - то ошибка архива
 			if [ -a FILE ]; 
 			then
 				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА "$ArchPath" Архив с таким именем уже существует - архив не создан \n" >> $BackupLog
 
 				flagOKGlobal=false
 			else
+
+				#Если ошибок архива не было, то начинаем архивацию
+				#???
+
 				printf `(date +%Y-%m-%d-%H-%M-%S)`": Начинаем создавать архив "$ArchPath" из источника "$SrcPath" \n" >> $BackupLog
 				#tar -cvzpf $ArchPath $SrcPath >> $BackupLog
 
@@ -138,9 +207,11 @@ then
 				then
 					printf `(date +%Y-%m-%d-%H-%M-%S)`": Архив "$ArchPath" успешно создан \n" >> $BackupLog
 
-					###Удаление старых архивов
+					#Удаление старых архивов
+					#???
 
-					###Выполняем внешний скрипт, если это необходимо
+					#Выполняем внешний скрипт, если это необходимо
+					#???
 
 				else
 					printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА "$ArchPath" Процесс создания архива прошел с ошибками \n" >> $BackupLog
@@ -152,7 +223,7 @@ then
 
 			
 
-			echo "Источник" $SrcPath " получатель " $ArchPath " скрипт " $ScriptParh "MaxArhMun="$MaxArhMun "MaxArhSize="$MaxArhSize "MinArhNum="$MinArhNum
+			echo "Источник" $SrcPath " получатель " $ArchPath " скрипт " $ScriptParh "ArhNumDaily="$ArhNumDaily "ArhNumWeekly="$ArhNumWeekly "ArhNumMonthly="$ArhNumMonthly
 				;;	
 		esac
 	done
@@ -169,6 +240,7 @@ then
 		printf `(date +%Y-%m-%d-%H-%M-%S)`": ЗАДАНИЯ АРХИВИРОВАНИЯ ВЫПОЛНЕННЫ С ОШИБКАМИ !!! \n" >> $BackupLog
 		printf "____________________________________________\n" >> $ErrorLog
 		cat $BackupLog > $ErrorLog
-		###отправляем $BackupLog по электронной почте с сообщение о ошибке
+		#отправляем $BackupLog по электронной почте с сообщение о ошибке
+		#???
 	fi
 fi	
