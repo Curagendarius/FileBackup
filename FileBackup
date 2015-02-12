@@ -52,6 +52,146 @@ ErrorLog="/var/log/FileBackupERROR.log"
 #Почтовый адрес куда слать логи с неудачными попытками резервного копирования
 EmailAddress="andrey@mibra.ru"
 
+#Функция ротации архивов (уделение устаревших архивов)
+funArhRotation ()
+{
+	#Удаление старых ежемесячных архивов
+	let "TailArg = ArhNumMonthly + 1"
+	#ls -t $ArchPath$ArchTemplate"-monthly"* -print 2>/dev/null | tail -n +`expr $ArhNumMonthly + 1`
+	for NextOldMonthly in `ls -t $ArchPath$ArchTemplate"-monthly"* -print 2>/dev/null | tail -n +$TailArg`; 
+	do
+		if [ $NextOldMonthly != $ArchFullName ]; 
+		then
+echo "Удаляем "$NextOldMonthly
+			#Удаляем текущий архив
+			#???
+
+			#Если удаление прошло неудачно, то ошибка 
+			#???
+
+			#Если удаление прошло удачно, то пишем в лог о удачном удалении старого архива
+			#???
+		fi
+	done
+}
+
+#Функция обработки каждого задания на архивацию
+funArhCreation ()
+{
+
+echo "funArh"
+	#Флаг успешности выполнения каждого задания на архивацию
+	flagOKLocal=true
+
+	#Если последним символом каталога назначения не является "/" то добавляем его
+	if [ ${ArchPath:(-1):1} != "/" ]; 
+	then
+		ArchPath=$ArchPath"/"
+	fi
+
+	#Если источник недоступен для чтения, то ошибка создания архива
+	if [  ! -r $SrcPath ]; 
+	then
+		printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" Источник "$SrcPath" не доступен для чтения \n" >> $BackupLog
+		flagOKGlobal=false
+		flagOKLocal=false
+	fi
+
+	#Если каталог назначения недоступен для записи, то ошибка содания архива
+	if [  ! -w $ArchPath ] | [  ! -d $ArchPath ]; 
+	then
+		printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" Каталог "$ArchPath" не доступен для записи или не явлется каталогом \n" >> $BackupLog
+		flagOKGlobal=false
+		flagOKLocal=false
+	fi
+
+	#Формируем имя архива
+	printf "\n" >> $BackupLog
+
+	#Ищем имя самого последнего ежемесячного архива 
+	OldEndMonthlyArh=`ls -t $ArchPath$ArchTemplate"-monthly"* -print 2>/dev/null | head -1`
+			
+	#Проверяем а есть ли вообще последний ежемесячный архив
+	if [ $OldEndMonthlyArh ]; 
+	then
+		#Если у нового архива месяц новый и ArhNumMonthly>0 то суфикс имени архива будет monthly
+		if [ ${OldEndMonthlyArh:(-24):2} != `date +%m` ] && [ $ArhNumMonthly -gt 0 ]; 
+		then
+			ArhSufix="monthly"
+		fi
+	fi
+
+	#Ищем имя самого последнего еженедельного архива
+	OldEndWeeklyArh=`ls -t $ArchPath$ArchTemplate"-weekly"* -print 2>/dev/null | head -1`
+
+	#Проверяем а есть ли вообще последний ежемесячный архив
+	if [ $OldEndWeeklyArh ]; 
+	then
+		#Если неделя изменилась, а ArсhSufix="" и ArсhNumWeekly>0 то суфикс имени архива будет weekly 
+		if [ ${OldEndWeeklyArh:(-18):2} != `date +%U` ] && [ $ArhNumWeekly -gt 0 ] && [ ! $ArhSufix ]; 
+		then
+			ArhSufix="weekly"
+		fi
+	fi
+
+	#Если ArсhSufix="" и ArсhNumDaily>0 то суфикс имени архива будет daily
+	if [ $ArhNumDaily -gt 0 ] && [ ! $ArhSufix ]; 
+	then
+		ArhSufix="daily"
+	fi
+
+	#Если суфикс архива не определен то ошибка задачи параметров архива
+	if [ ! $ArhSufix ]; 
+	then
+		printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" Не задано ненулевое количество архивов \n" >> $BackupLog
+		flagOKGlobal=false
+		flagOKLocal=false
+	else
+		#Иначе генерируем имя нового архива и запускаем архивацию
+		ArchFullName=$ArchPath$ArchTemplate"-"$ArhSufix"-"`(date +%Y-%m-%d-%U-%H_%M_%S)`".tar.gz"
+	fi
+
+
+
+	#Если файл с таким именем архива существует - то ошибка архива
+	if [ -a $ArchFullName ]; 
+	then
+		printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" Архив с таким именем уже существует - архив не создан \n" >> $BackupLog
+		flagOKGlobal=false
+		flagOKLocal=false
+	fi
+	
+
+
+	#Если ошибок подготовки архивации этого задания на архивацию не було, то начинаем архивацию
+	if [ flagOKLocal ]; 
+	then
+		printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" из источника "$SrcPath" \n" >> $BackupLog
+echo "Архивируем"
+		#tar -cvzpf $ArchFullName $SrcPath >> $BackupLog
+
+		#Проверяем удачно ли произошло архивирование
+		if [ $? -eq 0 ];
+		then
+			printf `(date +%Y-%m-%d-%H-%M-%S)`": Архив "$ArchPath$ArchTemplate" успешно создан \n" >> $BackupLog
+
+			#Запускаем функцию удаления ненужных архивов (ротация архивов)
+			funArhRotation
+
+			#Выполняем внешний скрипт, если это необходимо
+			#???
+
+		else
+			printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" Процесс создания архива прошел с ошибками \n" >> $BackupLog
+			flagOKGlobal=false
+		fi 
+	fi
+}
+
+
+
+
+
 #Удаляем временный лог файл если они есть 
 if [ -e "$BackupLogPath" ]; then rm $BackupLogPath ; fi
 
@@ -76,7 +216,6 @@ then
 	#Цикл перебора строк параметров
 	IFS=$'\n'; for NextListElement in $SrcList;
 	do
-echo "новый парам"
 		case $SrcListStringIterator in
 			"1"|"0" )
 			SrcPath=$NextListElement
@@ -108,7 +247,7 @@ echo "новый парам"
 			ArhNumMonthly=0
 			ArhSufix=""
 			ExtParamsStringIterator="0"
-echo "парам 2"
+
 			
 			IFS=$'|'; for NextParam in $ExtParams; 
 			do
@@ -126,127 +265,9 @@ echo "парам 2"
 			 			;;	
 			 	esac
 			done 
-echo "тест"
-			#Если последним символом каталога назначения не является "/" то добавляем его
-			if [ ${ArchPath:(-1):1} != "/" ]; 
-			then
-				ArchPath=$ArchPath"/"
-			fi
 
-			#Если источник недоступен для чтения, то ошибка создания архива
-			if [  ! -r $SrcPath ]; 
-			then
-				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" Источник "$SrcPath" не доступен для чтения \n" >> $BackupLog
-
-				flagOKGlobal=false
-			fi
-
-			#Если каталог назначения недоступен для записи, то ошибка содания архива
-			if [  ! -w $ArchPath ] | [  ! -d $ArchPath ]; 
-			then
-				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" Каталог "$ArchPath" не доступен для записи или не явлется каталогом \n" >> $BackupLog
-
-				flagOKGlobal=false
-			fi
-
-			#Формируем имя архива
-			printf "\n" >> $BackupLog
-
-			#Ищем имя самого последнего ежемесячного архива 
-			OldEndMonthlyArh=`ls -t $ArchPath$ArchTemplate"-monthly"* -print 2>/dev/null | head -1`
-			
-			#Проверяем а есть ли вообще последний ежемесячный архив
-			if [ $OldEndMonthlyArh ]; 
-			then
-				#Если у нового архива месяц новый и ArhNumMonthly>0 то суфикс имени архива будет monthly
-				if [ ${OldEndMonthlyArh:(-24):2} != `date +%m` ] && [ $ArhNumMonthly -gt 0 ]; 
-				then
-					ArhSufix="monthly"
-				fi
-			fi
-
-echo "проверяем старые архивы"
-			#Ищем имя самого последнего еженедельного архива
-			OldEndWeeklyArh=`ls -t $ArchPath$ArchTemplate"-weekly"* -print 2>/dev/null | head -1`
-
-			#Проверяем а есть ли вообще последний ежемесячный архив
-			if [ $OldEndWeeklyArh ]; 
-			then
-				#Если неделя изменилась, а ArсhSufix="" и ArсhNumWeekly>0 то суфикс имени архива будет weekly 
-				if [ ${OldEndWeeklyArh:(-18):2} != `date +%U` ] && [ $ArhNumWeekly -gt 0 ] && [ ! $ArhSufix ]; 
-				then
-					ArhSufix="weekly"
-				fi
-			fi
-
-			#Если ArсhSufix="" и ArсhNumDaily>0 то суфикс имени архива будет daily
-			if [ $ArhNumDaily -gt 0 ] && [ ! $ArhSufix ]; 
-			then
-				ArhSufix="daily"
-			fi
-
-			#Если суфикс архива не определен то ошибка задачи параметров архива
-			if [ ! $ArhSufix ]; 
-			then
-				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" Не задано нулевое количество архивов \n" >> $BackupLog
-
-				flagOKGlobal=false
-			fi
-
-			#Иначе генерируем имя нового архива и запускаем архивацию
-			ArchFullName=$ArchPath$ArchTemplate"-"$ArhSufix"-"`(date +%Y-%m-%d-%U-%H_%M_%S)`".tar.gz"
-
-			#Если файл с таким именем архива существует - то ошибка архива
-			if [ -a $ArchFullName ]; 
-			then
-				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" Архив с таким именем уже существует - архив не создан \n" >> $BackupLog
-
-				flagOKGlobal=false
-			else
-
-				#Если ошибок архива не было, то начинаем архивацию
-				if [ flagOKGlobal ]; 
-				then
-					printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" из источника "$SrcPath" \n" >> $BackupLog
-echo "Архивируем"
-					#tar -cvzpf $ArchFullName $SrcPath >> $BackupLog
-
-					#Проверяем удачно ли произошло архивирование
-					if [ $? -eq 0 ];
-					then
-						printf `(date +%Y-%m-%d-%H-%M-%S)`": Архив "$ArchPath$ArchTemplate" успешно создан \n" >> $BackupLog
-
-						#Удаление старых ежемесячных архивов
-						let "TailArg = ArhNumMonthly + 1"
-						#ls -t $ArchPath$ArchTemplate"-monthly"* -print 2>/dev/null | tail -n +`expr $ArhNumMonthly + 1`
-						for NextOldMonthly in `ls -t $ArchPath$ArchTemplate"-monthly"* -print 2>/dev/null | tail -n +$TailArg`; 
-						do
-							if [ $NextOldMonthly != $ArchFullName ]; 
-							then
-echo "Удаляем "$NextOldMonthly
-								#Удаляем текущий архив
-								#???
-
-								#Если удаление прошло неудачно, то ошибка 
-								#???
-
-								#Если удаление прошло удачно, то пишем в лог о удачном удалении старого архива
-								#???
-							fi
-						done
-
-						#Выполняем внешний скрипт, если это необходимо
-						#???
-
-					else
-						printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" Процесс создания архива прошел с ошибками \n" >> $BackupLog
-						flagOKGlobal=false
-					fi 
-				fi
-			fi
-			
-
-			
+			#Запускаем функцию создания архива для текущего задания архивации
+			funArhCreation			
 
 			echo "Источник" $SrcPath " получатель " $ArchPath " скрипт " $ScriptParh "ArhNumDaily="$ArhNumDaily "ArhNumWeekly="$ArhNumWeekly "ArhNumMonthly="$ArhNumMonthly
 				;;	
