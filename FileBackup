@@ -1,76 +1,71 @@
 #!/bin/bash
 
-#SrcList - список заданий архивирования
-#В данном списке по каждому источнику архивации заполняется следующие строки:
-#	1) путь к папке источника архивации (что архивируем)
-#	2) путь к папке куда будем складывать архивы
-#	2) шаблон имени архива. К шаблогу будет добавлен суфикс типа (Daily, Weekly, Monthly) архива и дата арихива для получения имени архива
-#			
-#	3) путь к скрипту дополнительной обработки архива, который исполнится в случае удачного создания архива
-#	   если ни чего обрабатывать не надо то пишем "no"
-#	   В скрипт можно передать следующие параметры:
-#		$SrcPath - путь источника удачно выполненного архива
-#		$ArchTemplate - шаблон имени архива	
-#		$ArchPath - путь к удачно выполненному архиву
-#	4) сторка дополнительных параметров с разделителем |
-#		a) количество ежедневных копий
-#		c) количество еженедельных копий (необязательный параметр)
-#		d) количество ежемесячных копий (необязательный параметр)
-#
-#Пример:
-# SrcList="/var/lib/plexmediaserver
-# /mnt/BackUp/Plex/
-# plexSettings
-#
-# 40
-# /usr/plex
-# /mnt/Bаckup/Plex/
-# plexProg
-#
-# 4|4|6
-# /home/user/temp
-# /mnt/Backup/НomeUserTemp/
-# HomeUserTemp
-# /home/user/DelAllFIles $SrcPath
-# 3"
-
-SrcList="/var/log
-/Volumes/CuraDisk/test
-mytest
-no
-3|2|2
-/var/log
-/Volumes/CuraDisk/test
-mytest
-no
-3|2|2"
-
-#Файл лога архивации последней сессии
-BackupLog="/var/log/FileBackup.log"
-ErrorLog="/var/log/FileBackupERROR.log"
-
-#Почтовый адрес куда слать логи с неудачными попытками резервного копирования
-EmailAddress="andrey@mibra.ru"
-
 #Функция ротации архивов (уделение устаревших архивов)
 funArhRotation ()
 {
 	#Удаление старых ежемесячных архивов
 	let "TailArg = ArhNumMonthly + 1"
-	#ls -t $ArchPath$ArchTemplate"-monthly"* -print 2>/dev/null | tail -n +`expr $ArhNumMonthly + 1`
-	for NextOldMonthly in `ls -t $ArchPath$ArchTemplate"-monthly"* -print 2>/dev/null | tail -n +$TailArg`; 
+	IFS=$'\n'; for NextOldMonthly in `ls -t $ArchPath$ArchTemplate"-monthly"* -print 2>/dev/null | tail -n +$TailArg`; 
 	do
 		if [ $NextOldMonthly != $ArchFullName ]; 
 		then
-echo "Удаляем "$NextOldMonthly
 			#Удаляем текущий архив
-			#???
+			`rm $NextOldMonthly`
 
-			#Если удаление прошло неудачно, то ошибка 
-			#???
+			#Проверяем удачно ли произошло удаление старого архива
+			if [ $? -eq 0 ];
+			then
+				#Если удаление прошло удачно, то пишем в лог о удачном удалении старого архива
+				printf `(date +%Y-%m-%d-%H-%M-%S)`": Старый архив "$NextOldMonthly" успешно удален \n" >> $BackupLog
+			else
+				#Если удаление прошло неудачно, то ошибка
+				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА удаления старого архива: "$NextOldMonthly" \n" >> $BackupLog
+				flagOKGlobal=false
+			fi 
+		fi
+	done
 
-			#Если удаление прошло удачно, то пишем в лог о удачном удалении старого архива
-			#???
+	#Удаление старых еженедельных архивов
+	let "TailArg = ArhNumWeekly + 1"
+	IFS=$'\n'; for NextOldWeekly in `ls -t $ArchPath$ArchTemplate"-weekly"* -print 2>/dev/null | tail -n +$TailArg`; 
+	do
+		if [ $NextOldWeekly != $ArchFullName ]; 
+		then
+			#Удаляем текущий архив
+			`rm $NextOldWeekly 2>> $BackupLog`
+
+			#Проверяем удачно ли произошло удаление старого архива
+			if [ $? -eq 0 ];
+			then
+				#Если удаление прошло удачно, то пишем в лог о удачном удалении старого архива
+				printf `(date +%Y-%m-%d-%H-%M-%S)`": Старый архив "$NextOldWeekly" успешно удален \n" >> $BackupLog
+			else
+				#Если удаление прошло неудачно, то ошибка
+				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА удаления старого архива: "$NextOldWeekly" \n" >> $BackupLog
+				flagOKGlobal=false
+			fi 
+		fi
+	done
+
+	#Удаление старых ежедневных архивов
+	let "TailArg = ArhNumDaily + 1"
+	IFS=$'\n'; for NextOldDaily in `ls -t $ArchPath$ArchTemplate"-daily"* -print 2>/dev/null | tail -n +$TailArg`; 
+	do
+		if [ $NextOldDaily != $ArchFullName ]; 
+		then
+			#Удаляем текущий архив
+			`rm $NextOldDaily 2>> $BackupLog`
+
+			#Проверяем удачно ли произошло удаление старого архива
+			if [ $? -eq 0 ];
+			then
+				#Если удаление прошло удачно, то пишем в лог о удачном удалении старого архива
+				printf `(date +%Y-%m-%d-%H-%M-%S)`": Старый архив "$NextOldDaily" успешно удален \n" >> $BackupLog
+			else
+				#Если удаление прошло неудачно, то ошибка
+				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА удаления старого архива: "$NextOldDaily" \n" >> $BackupLog
+				flagOKGlobal=false
+			fi 
 		fi
 	done
 }
@@ -79,7 +74,6 @@ echo "Удаляем "$NextOldMonthly
 funArhCreation ()
 {
 
-echo "funArh"
 	#Флаг успешности выполнения каждого задания на архивацию
 	flagOKLocal=true
 
@@ -147,33 +141,28 @@ echo "funArh"
 		flagOKGlobal=false
 		flagOKLocal=false
 	else
-		#Иначе генерируем имя нового архива и запускаем архивацию
+		#Иначе генерируем имя нового архива 
 		ArchFullName=$ArchPath$ArchTemplate"-"$ArhSufix"-"`(date +%Y-%m-%d-%U-%H_%M_%S)`".tar.gz"
 	fi
-
-
 
 	#Если файл с таким именем архива существует - то ошибка архива
 	if [ -a $ArchFullName ]; 
 	then
-		printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" Архив с таким именем уже существует - архив не создан \n" >> $BackupLog
+		printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" Архив с таким именем уже существует - архив не создан \n" >> $BackupLog
 		flagOKGlobal=false
 		flagOKLocal=false
 	fi
-	
-
 
 	#Если ошибок подготовки архивации этого задания на архивацию не було, то начинаем архивацию
 	if [ flagOKLocal ]; 
 	then
-		printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" из источника "$SrcPath" \n" >> $BackupLog
-echo "Архивируем"
-		#tar -cvzpf $ArchFullName $SrcPath >> $BackupLog
+		printf `(date +%Y-%m-%d-%H-%M-%S)`": Начало создания архива "$ArchFullName" из источника "$SrcPath"\n" >> $BackupLog
+		`tar -czpf $ArchFullName $SrcPath 2>> $BackupLog`
 
 		#Проверяем удачно ли произошло архивирование
 		if [ $? -eq 0 ];
 		then
-			printf `(date +%Y-%m-%d-%H-%M-%S)`": Архив "$ArchPath$ArchTemplate" успешно создан \n" >> $BackupLog
+			printf `(date +%Y-%m-%d-%H-%M-%S)`": Архив "$ArchFullName" успешно создан \n" >> $BackupLog
 
 			#Запускаем функцию удаления ненужных архивов (ротация архивов)
 			funArhRotation
@@ -182,21 +171,37 @@ echo "Архивируем"
 			#???
 
 		else
-			printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" Процесс создания архива прошел с ошибками \n" >> $BackupLog
+			printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" из источника "$SrcPath" Процесс создания архива прошел с ошибками \n" >> $BackupLog
 			flagOKGlobal=false
 		fi 
 	fi
 }
 
 
+##############################
+###  ТОЧКА СТАРТА СКРИПТА  ###
+##############################
+#Флаг  нормального завершения всей процедуры резервного копирования
+flagOKGlobal=true
 
+#Определяем путь запуска скрипта
+# current path resolver from http://stackoverflow.com/a/246128
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+INSTALL_DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 
+#Считываем основные параметры настроек из файла config.cfg
+. $INSTALL_DIR/config.cfg
+
+#Если основные параметры настроек неверны то ошибка
+#???
 
 #Удаляем временный лог файл если они есть 
 if [ -e "$BackupLogPath" ]; then rm $BackupLogPath ; fi
-
-#Флаг  нормального завершения всей процедуры резервного копирования
-flagOKGlobal=true
 
 #Очищаем старый лог файл если он есть
 cat /dev/null > $BackupLog
@@ -213,8 +218,7 @@ if ( $flagOKGlobal );
 then
 	#Флаг для того чтобы в одном цикле считывать поочереди каждую строку для каждого источника архивирования
 	SrcListStringIterator="0"
-	#Цикл перебора строк параметров
-	IFS=$'\n'; for NextListElement in $SrcList;
+	sed '/^\s*#/d;/^$/d;' $INSTALL_DIR/work.cfg | while read NextListElement
 	do
 		case $SrcListStringIterator in
 			"1"|"0" )
@@ -267,9 +271,7 @@ then
 			done 
 
 			#Запускаем функцию создания архива для текущего задания архивации
-			funArhCreation			
-
-			echo "Источник" $SrcPath " получатель " $ArchPath " скрипт " $ScriptParh "ArhNumDaily="$ArhNumDaily "ArhNumWeekly="$ArhNumWeekly "ArhNumMonthly="$ArhNumMonthly
+			funArhCreation
 				;;	
 		esac
 	done
