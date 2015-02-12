@@ -38,6 +38,11 @@ SrcList="/var/log
 /Volumes/CuraDisk/test
 mytest
 no
+3|2|2
+/var/log
+/Volumes/CuraDisk/test
+mytest
+no
 3|2|2"
 
 #Файл лога архивации последней сессии
@@ -66,11 +71,12 @@ fi
 
 if ( $flagOKGlobal );
 then
-	#Флаг для того чтобы в одном цикле считывать поочереди первую и вторую строку для каждого источника архивирования
+	#Флаг для того чтобы в одном цикле считывать поочереди каждую строку для каждого источника архивирования
 	SrcListStringIterator="0"
-	#Цикл перебора баз данных
+	#Цикл перебора строк параметров
 	IFS=$'\n'; for NextListElement in $SrcList;
 	do
+echo "новый парам"
 		case $SrcListStringIterator in
 			"1"|"0" )
 			SrcPath=$NextListElement
@@ -102,6 +108,7 @@ then
 			ArhNumMonthly=0
 			ArhSufix=""
 			ExtParamsStringIterator="0"
+echo "парам 2"
 			
 			IFS=$'|'; for NextParam in $ExtParams; 
 			do
@@ -119,7 +126,7 @@ then
 			 			;;	
 			 	esac
 			done 
-
+echo "тест"
 			#Если последним символом каталога назначения не является "/" то добавляем его
 			if [ ${ArchPath:(-1):1} != "/" ]; 
 			then
@@ -158,6 +165,7 @@ then
 				fi
 			fi
 
+echo "проверяем старые архивы"
 			#Ищем имя самого последнего еженедельного архива
 			OldEndWeeklyArh=`ls -t $ArchPath$ArchTemplate"-weekly"* -print 2>/dev/null | head -1`
 
@@ -180,44 +188,61 @@ then
 			#Если суфикс архива не определен то ошибка задачи параметров архива
 			if [ ! $ArhSufix ]; 
 			then
-				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА "$ArchPath" Не задано нулевое количество архивов \n" >> $BackupLog
+				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" Не задано нулевое количество архивов \n" >> $BackupLog
 
 				flagOKGlobal=false
 			fi
 
 			#Иначе генерируем имя нового архива и запускаем архивацию
-			ArchPath=$ArchTemplate"-"$ArhSufix"-"`(date +%Y-%m-%d-%U-%H_%M_%S)`".tar.gz"
+			ArchFullName=$ArchPath$ArchTemplate"-"$ArhSufix"-"`(date +%Y-%m-%d-%U-%H_%M_%S)`".tar.gz"
 
 			#Если файл с таким именем архива существует - то ошибка архива
-			if [ -a FILE ]; 
+			if [ -a $ArchFullName ]; 
 			then
-				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА "$ArchPath" Архив с таким именем уже существует - архив не создан \n" >> $BackupLog
+				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" Архив с таким именем уже существует - архив не создан \n" >> $BackupLog
 
 				flagOKGlobal=false
 			else
 
 				#Если ошибок архива не было, то начинаем архивацию
-				#???
-
-				printf `(date +%Y-%m-%d-%H-%M-%S)`": Начинаем создавать архив "$ArchPath" из источника "$SrcPath" \n" >> $BackupLog
-				#tar -cvzpf $ArchPath $SrcPath >> $BackupLog
-
-				#Проверяем удачно ли произошло архивирование
-				if [ $? -eq 0 ];
+				if [ flagOKGlobal ]; 
 				then
-					printf `(date +%Y-%m-%d-%H-%M-%S)`": Архив "$ArchPath" успешно создан \n" >> $BackupLog
+					printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" из источника "$SrcPath" \n" >> $BackupLog
+echo "Архивируем"
+					#tar -cvzpf $ArchFullName $SrcPath >> $BackupLog
 
-					#Удаление старых архивов
-					#???
+					#Проверяем удачно ли произошло архивирование
+					if [ $? -eq 0 ];
+					then
+						printf `(date +%Y-%m-%d-%H-%M-%S)`": Архив "$ArchPath$ArchTemplate" успешно создан \n" >> $BackupLog
 
-					#Выполняем внешний скрипт, если это необходимо
-					#???
+						#Удаление старых ежемесячных архивов
+						let "TailArg = ArhNumMonthly + 1"
+						#ls -t $ArchPath$ArchTemplate"-monthly"* -print 2>/dev/null | tail -n +`expr $ArhNumMonthly + 1`
+						for NextOldMonthly in `ls -t $ArchPath$ArchTemplate"-monthly"* -print 2>/dev/null | tail -n +$TailArg`; 
+						do
+							if [ $NextOldMonthly != $ArchFullName ]; 
+							then
+echo "Удаляем "$NextOldMonthly
+								#Удаляем текущий архив
+								#???
 
-				else
-					printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА "$ArchPath" Процесс создания архива прошел с ошибками \n" >> $BackupLog
-					flagOKGlobal=false
-				fi 
+								#Если удаление прошло неудачно, то ошибка 
+								#???
 
+								#Если удаление прошло удачно, то пишем в лог о удачном удалении старого архива
+								#???
+							fi
+						done
+
+						#Выполняем внешний скрипт, если это необходимо
+						#???
+
+					else
+						printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с шаблоном имени: "$ArchPath$ArchTemplate" Процесс создания архива прошел с ошибками \n" >> $BackupLog
+						flagOKGlobal=false
+					fi 
+				fi
 			fi
 			
 
