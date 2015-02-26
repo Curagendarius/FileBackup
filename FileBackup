@@ -189,8 +189,6 @@ funArhCreation ()
 			fi
 
 		else
-			#???
-			echo "Ошибка создания архива"
 			printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" из источника "$SrcPath" Процесс создания архива прошел с ошибками \n" >> $BackupLog
 			flagOKGlobal=false
 		fi 
@@ -261,8 +259,11 @@ if ( $flagOKGlobal );
 then
 	#Флаг для того чтобы в одном цикле считывать поочереди каждую строку для каждого источника архивирования
 	SrcListStringIterator="0"
-	export flagOKGlobal
-	sed '/^\s*#/d;/^$/d;' $INSTALL_DIR/work.cfg | while read NextListElement
+	
+	#Очищаем файл с входными значениями заданий архитвации от комментариев и пропусков строк
+	PurifiedListParam=`sed '/^\s*#/d;/^$/d;' $INSTALL_DIR/work.cfg`
+
+	for NextListElement in $PurifiedListParam
 	do
 		case $SrcListStringIterator in
 			"1"|"0" )
@@ -317,25 +318,12 @@ then
 			#Запускаем функцию создания архива для текущего задания архивации
 			export flagOKGlobal
 			funArhCreation
-
-
-
-#???
-echo "flagOKGlobal1" $flagOKGlobal
-
 				;;	
 		esac
-
-#???
-echo "flagOKGlobal2" $flagOKGlobal
 	done
 
 	#Если все процессы архивирования прошли успешно, то очищаем лог ошибок. Если нет то отправляем лог текушей сессии с сообщением о ошибке по электронной почте 
 	#и добавляем содержимое текущего лога в лог о ошибках
-
-#???
-echo "flagOKGlobal3" $flagOKGlobal
-
 	if ( $flagOKGlobal );
 	then
 		printf "\n" >> $BackupLog
