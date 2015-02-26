@@ -153,7 +153,7 @@ funArhCreation ()
 		flagOKLocal=false
 	fi
 
-	#Если ошибок подготовки архивации этого задания на архивацию не було, то начинаем архивацию
+	#Если ошибок подготовки архивации этого задания на архивацию не было, то начинаем архивацию
 	if [ flagOKLocal ]; 
 	then
 		printf `(date +%Y-%m-%d-%H-%M-%S)`": Начало создания архива "$ArchFullName" из источника "$SrcPath"\n" >> $BackupLog
@@ -168,9 +168,29 @@ funArhCreation ()
 			funArhRotation
 
 			#Выполняем внешний скрипт, если это необходимо
-			#???
+			if [ $ScriptName != "no" ] 
+			then
+				ScriptPatch=$INSTALL_DIR/$ScriptName
+				if [ -r $ScriptPatch ]
+				then
+					#Если ошибка выполнения внешнего скрипта то ошибка архива
+					printf `(date +%Y-%m-%d-%H-%M-%S)`": Начало выполнения внешнено скрипта "$ScriptName" для архива "$ArchFullName" из источника "$SrcPath"\n" >> $BackupLog
+					. $ScriptPatch >> $BackupLog
+					if [ $? -eq 0 ];
+					then
+						printf `(date +%Y-%m-%d-%H-%M-%S)`": Успешно выполен внешний скрипт "$ScriptName" для архива "$ArchFullName" из источника "$SrcPath"\n" >> $BackupLog
+					else
+						printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА выполения внешнего скрипта "$ScriptName" для архива "$ArchFullName" из источника "$SrcPath"\n" >> $BackupLog
+					fi 
+				else
+					printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА для архива с именем: "$ArchFullName" из источника "$SrcPath" Дополнительный скрипт не найден или нет прав на чтение \n" >> $BackupLog
+					flagOKGlobal=false
+				fi
+			fi
 
 		else
+			#???
+			echo "Ошибка создания архива"
 			printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" из источника "$SrcPath" Процесс создания архива прошел с ошибками \n" >> $BackupLog
 			flagOKGlobal=false
 		fi 
@@ -183,6 +203,7 @@ funArhCreation ()
 ##############################
 #Флаг  нормального завершения всей процедуры резервного копирования
 flagOKGlobal=true
+export flagOKGlobal
 
 #Определяем путь запуска скрипта
 # current path resolver from http://stackoverflow.com/a/246128
@@ -198,10 +219,32 @@ INSTALL_DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 . $INSTALL_DIR/config.cfg
 
 #Если основные параметры настроек неверны то ошибка
-#???
+if [ $? -eq 0 ];
+then
+	printf `(date +%Y-%m-%d-%H-%M-%S)`": Успешно прочитаны настройки из внешнего файла config.cfg \n" >> $BackupLog
+else
+	echo "ОШИБКА прочитения настроек из внешнего файла config.cfg"
+	flagOKGlobal=false
+fi 
 
-#Удаляем временный лог файл если они есть 
-if [ -e "$BackupLogPath" ]; then rm $BackupLogPath ; fi
+if [ ! -w $BackupLog ]
+then
+	echo "ОШИБКА файл лога "$BackupLog" не обнаружен или у файла нет права на запись"
+	flagOKGlobal=false
+fi
+
+if [ ! -w $ErrorLog ]
+then
+	echo "ОШИБКА файл лога "$ErrorLog" не обнаружен или у файла нет права на запись"
+	flagOKGlobal=false
+fi
+
+if [ ! -w $ErrorNotifyLog ]
+then
+	echo "ОШИБКА файл лога "$ErrorNotifyLog" не обнаружен или у файла нет права на запись"
+	flagOKGlobal=false
+fi
+
 
 #Очищаем старый лог файл если он есть
 cat /dev/null > $BackupLog
@@ -218,6 +261,7 @@ if ( $flagOKGlobal );
 then
 	#Флаг для того чтобы в одном цикле считывать поочереди каждую строку для каждого источника архивирования
 	SrcListStringIterator="0"
+	export flagOKGlobal
 	sed '/^\s*#/d;/^$/d;' $INSTALL_DIR/work.cfg | while read NextListElement
 	do
 		case $SrcListStringIterator in
@@ -237,7 +281,7 @@ then
 				;;
 
 			"4" )
-			ScriptParh=$NextListElement
+			ScriptName=$NextListElement
 			SrcListStringIterator="5"
 				;;	
 
@@ -271,13 +315,27 @@ then
 			done 
 
 			#Запускаем функцию создания архива для текущего задания архивации
+			export flagOKGlobal
 			funArhCreation
+
+
+
+#???
+echo "flagOKGlobal1" $flagOKGlobal
+
 				;;	
 		esac
+
+#???
+echo "flagOKGlobal2" $flagOKGlobal
 	done
 
 	#Если все процессы архивирования прошли успешно, то очищаем лог ошибок. Если нет то отправляем лог текушей сессии с сообщением о ошибке по электронной почте 
 	#и добавляем содержимое текущего лога в лог о ошибках
+
+#???
+echo "flagOKGlobal3" $flagOKGlobal
+
 	if ( $flagOKGlobal );
 	then
 		printf "\n" >> $BackupLog
@@ -287,8 +345,22 @@ then
 		printf "\n" >> $BackupLog
 		printf `(date +%Y-%m-%d-%H-%M-%S)`": ЗАДАНИЯ АРХИВИРОВАНИЯ ВЫПОЛНЕННЫ С ОШИБКАМИ !!! \n" >> $BackupLog
 		printf "____________________________________________\n" >> $ErrorLog
-		cat $BackupLog > $ErrorLog
-		#отправляем $BackupLog по электронной почте с сообщение о ошибке
-		#???
+		cat $BackupLog >> $ErrorLog
+		#отправляем $BackupLog по электронной почте с сообщением о ошибке
+		if [ -r $INSTALL_DIR/notify ]
+		then
+			. $INSTALL_DIR/notify
+
+			#Если ошибка выполнения уведомления то пишем сообщение в лог ошибок нотификации
+			if [ $? -eq 0 ];
+			then
+				cat /dev/null > $ErrorNotifyLog
+			else
+				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА: скрипта уведомления !!! \n" >> $ErrorNotifyLog
+			fi 
+		else
+			echo "Не обнаружен файл нотификации или отсутствуют права на чтение !!!"
+			printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА: файл скрипта уведомления не найден или отсутствуют права на чтение !!! \n" >> $ErrorNotifyLog
+		fi
 	fi
 fi	
