@@ -1,4 +1,191 @@
 #!/bin/bash
 #Инсталятор скрипта резервного копирования
 
-#Запрос имени пользователя от которого надо запускать резерное копирование
+#Запрос имени пользователя от имени которого будет работать скрипт
+echo "Введите имя пльзователя от имени которого будет выполняться скрипть резервного копирования"
+echo "Внимание у этого пользователя должны быть права на чтение к файлам которые копируем и"
+echo "у этого пользоваетля должны быть права на запись в каталог куда будут записываться архивы"
+read FileBackupUserName
+grep "^$FileBackupUserName:" /etc/passwd >/dev/null
+if [ $? -ne 0 ]
+then
+	echo "Внимание: пользователь "$FileBackupUserName" не найден - вы уверены что хотите продолжить (y/n)"
+
+	read item
+	case "$item" in
+    	y|Y) echo "Ввели «y», продолжаем..."
+        	;;
+    	n|N) echo "Ввели «n», завершаем..."
+        	exit 1
+        	;;
+    	*) echo "Ничего не ввели. Выполняем действие по умолчанию... (заканчиваем работу)"
+			exit 1
+        	;;
+	esac
+else
+	echo "Для выполнения этого скрипта требуется добавить задание cron от того пользователя,"
+	echo "от которого будет выполняться."
+	echo "Для выполнения задания на резервное копироваения ежедневно в 23.30 требуетcя в crontab"
+	echo "добваить следующую строку:"
+	echo "30 23 * * * "$INSTALL_DIR"/FileBackup"
+	echo ""
+	echo "Если надо скопируйте эту строку для того чтобы добавить ее в crontab"
+	read -p "Для продолжения нажмите Enter и откроется crontab пользователя "$FileBackupUserName" ..."
+	`crontab -u $FileBackupUserName -e`
+fi
+
+
+
+
+
+#??? - убрать когда закончу
+exit 1
+
+#Запрос пути к логфайлу сессии резервного копирования
+#По умолчанию BackupLog="/var/log/FileBackup.log"
+echo "Введите пути к логфайлу сессии резервного копирования. По умолчанию /var/log/FileBackup.log"
+read BackupLog
+if [ -z $BackupLog ]
+then
+	BackupLog="/var/log/FileBackup.log"
+fi
+
+echo "проверяем сущестует ли такой файл "$BackupLog
+
+if [ -a $BackupLog ]
+then
+	echo "Файл с таким именем уже существует."
+	exit 1
+fi
+#Создание файла лога сессии резервного копирования 
+`cat</dev/null>$BackupLog`
+if [ -a $BackupLog ] 
+then
+	echo "Файл "$BackupLog" успешно создан"
+else
+	echo "Не получается создать файл с именем "$BackupLog
+	exit 1
+	
+fi
+# Задаем права на чтение и редактирование для всех (666) на логфайл сессии резервного копирования
+`chmod 666 $BackupLog`
+if [ $? -ne 0 ];
+then 
+	echo "Не удается задать права на логфайл "$BackupLog
+	exit 1
+fi
+
+#Запрос пути к логфайлу ошибок сессии резервного копирования
+#По умолчанию ErrorLog="/var/log/FileBackupERROR.log""
+echo "Введите пути к логфайлу сессии резервного копирования. По умолчанию /var/log/FileBackupERROR.log"
+read ErrorLog
+if [ -z $ErrorLog ]
+then
+	ErrorLog="/var/log/FileBackupERROR.log"
+fi
+
+echo "проверяем сущестует ли такой файл "$ErrorLog
+
+if [ -a $ErrorLog ]
+then
+	echo "Файл с таким именем уже существует."
+	exit 1
+fi
+#Создание файла лога сессии резервного копирования 
+#
+`cat</dev/null>$ErrorLog`
+if [ -a $ErrorLog ]; 
+then
+	echo "Файл "$ErrorLog" успешно создан"
+else
+	echo "Не получается создать файл с именем "$ErrorLog
+	exit 1
+	
+fi
+# Задаем права на чтение и редактирование для всех (666) на логфайл ошибок сессии резервного копирования
+`chmod 666 $ErrorLog`
+if [ $? -ne 0 ];
+then 
+	echo "Не удается задать права на логфайл "$ErrorLog
+	exit 1
+fi
+
+#Запрос пути к логфайлу ошибок нотификации резервного копирования
+#По умолчанию ErrorNotifyLog="/var/log/FileBackupNotifyERROR.log"
+echo "Введите пути к логфайлу сессии резервного копирования. По умолчанию /var/log/FileBackupNotifyERROR.log"
+read ErrorNotifyLog
+if [ -z $ErrorNotifyLog ]
+then
+	ErrorNotifyLog="/var/log/FileBackupNotifyERROR.log"
+fi
+
+echo "Проверяем сущестует ли такой файл "$ErrorNotifyLog
+
+if [ -a $ErrorNotifyLog ]
+then
+	echo "Файл с таким именем уже существует."
+	exit 1
+fi
+#Создание файла лога сессии резервного копирования 
+#
+`cat</dev/null>$ErrorNotifyLog`
+if [ -a $ErrorNotifyLog ]; 
+then
+	echo "Файл "$ErrorNotifyLog" успешно создан"
+else
+	echo "Не получается создать файл с именем "$ErrorNotifyLog
+	exit 1
+	
+fi
+# Задаем права на чтение и редактирование для всех (666) на логфайл ошибок нотификации резервного копирования
+`chmod 666 $ErrorNotifyLog`
+if [ $? -ne 0 ];
+then 
+	echo "Не удается задать права на логфайл "$ErrorNotifyLog
+	exit 1
+fi
+
+#Определяем путь запуска скрипта
+# current path resolver from http://stackoverflow.com/a/246128
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+INSTALL_DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+
+#Задаем рекурсивно права на каталог установки скрипта резервного копирования и всех сопустствующих файлов
+#Для всех фалов кроме ./FileBackup права 644 владелец root
+#для ./FileBackup - 555 владелец root
+echo "Задаем права на каталог установки скрипта: "$INSTALL_DIR
+if [ -d $INSTALL_DIR ] && [ -a $INSTALL_DIR/FileBackup ]
+then
+	`chmod -R 644 $INSTALL_DIR`
+	if [ $? -ne 0 ];
+	then 
+		echo "Не удается задать права каталог установки скрипта: "$INSTALL_DIR
+		exit 1
+	fi
+
+	`chown -R root $INSTALL_DIR`
+	if [ $? -ne 0 ];
+	then 
+		echo "Не удается задать владельцем каталога установки скрипта ("$INSTALL_DIR") пользователя root"
+		exit 1
+	fi
+
+	`chmod 555 $INSTALL_DIR/FileBackup`
+	if [ $? -ne 0 ];
+	then 
+		echo "Не удается задать права на выполнение для файла скрипта скрипта: "$INSTALL_DIR"/FileBackup"
+		exit 1
+	fi
+else
+	echo "Не удалось правильно определить каталог установри скрипта: "$INSTALL_DIR
+	exit 1
+fi
+
+
+
+

@@ -1,0 +1,29 @@
+#!/bin/bash
+
+#Настройки модуля нотификации Email-noPassword
+
+#Адрес отправителя
+EmailSender=""
+
+#Адрес получателя
+EmailDestination=""
+
+#Тема сообщения (Сюда следует завести имя компании и имя сервера)
+#Пример: SubjectMessage="Рога и копыта: STORAGE"
+SubjectMessage=""
+
+
+
+ErrorLog="/var/log/FileBackupERROR.log"
+
+echo "Subject: "$SubjectMessage":Ошибка задания резервного копирования "$ArchFullName"( "$SrcPath" )\nFrom: "$EmailSender"\nTo: "EmailDestination"\n\n"| cat $ErrorLog > ./temp
+
+
+
+#echo "Subject: Проверочка" > mail.txt 
+#echo "From: admin123@cross-way.ru" >> mail.txt
+#echo "To: andrey@admik.ru" >> mail.txt 
+#echo "Тестовое сообщение" >> mail.txt
+#echo "" >> mail.txt
+#echo "NOiuhwdblckfsud" >> mail.txt
+# cat ./mail.txt | /usr/sbin/sendmail -t

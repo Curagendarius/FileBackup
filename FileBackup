@@ -201,7 +201,6 @@ funArhCreation ()
 ##############################
 #Флаг  нормального завершения всей процедуры резервного копирования
 flagOKGlobal=true
-export flagOKGlobal
 
 #Определяем путь запуска скрипта
 # current path resolver from http://stackoverflow.com/a/246128
@@ -316,7 +315,6 @@ then
 			done 
 
 			#Запускаем функцию создания архива для текущего задания архивации
-			export flagOKGlobal
 			funArhCreation
 				;;	
 		esac
@@ -326,10 +324,12 @@ then
 	#и добавляем содержимое текущего лога в лог о ошибках
 	if ( $flagOKGlobal );
 	then
+		echo "ВСЕ ЗАДАНИЯ АРХИВИРОВАНИЯ ВЫПОЛНЕННЫ УСПЕШНО. Подробности выполнения смотрте в логе "$BackupLog
 		printf "\n" >> $BackupLog
 		printf `(date +%Y-%m-%d-%H-%M-%S)`": ВСЕ ЗАДАНИЯ АРХИВИРОВАНИЯ ВЫПОЛНЕННЫ УСПЕШНО" >> $BackupLog
 		cat /dev/null > $ErrorLog
 	else
+		echo "ПРИ ВЫПОЛНЕНИИ ЗАДАНИЙ АРХИВИРОВАНИЯ БЫЛИ ОБНАРУЖЕНЫ ОШИБКИ. Подробности выполнения смотрте в логе "$ErrorLog
 		printf "\n" >> $BackupLog
 		printf `(date +%Y-%m-%d-%H-%M-%S)`": ЗАДАНИЯ АРХИВИРОВАНИЯ ВЫПОЛНЕННЫ С ОШИБКАМИ !!! \n" >> $BackupLog
 		printf "____________________________________________\n" >> $ErrorLog
@@ -337,7 +337,7 @@ then
 		#отправляем $BackupLog по электронной почте с сообщением о ошибке
 		if [ -r $INSTALL_DIR/notify ]
 		then
-			. $INSTALL_DIR/notify
+			. $INSTALL_DIR/notify >> $ErrorNotifyLog
 
 			#Если ошибка выполнения уведомления то пишем сообщение в лог ошибок нотификации
 			if [ $? -eq 0 ];
