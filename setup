@@ -1,55 +1,47 @@
 #!/bin/bash
 #Инсталятор скрипта резервного копирования
 
-#Запрос имени пользователя от имени которого будет работать скрипт
-echo "Введите имя пльзователя от имени которого будет выполняться скрипть резервного копирования"
-echo "Внимание у этого пользователя должны быть права на чтение к файлам которые копируем и"
-echo "у этого пользоваетля должны быть права на запись в каталог куда будут записываться архивы"
-read FileBackupUserName
-grep "^$FileBackupUserName:" /etc/passwd >/dev/null
-if [ $? -ne 0 ]
-then
-	echo "Внимание: пользователь "$FileBackupUserName" не найден - вы уверены что хотите продолжить (y/n)"
 
-	read item
-	case "$item" in
-    	y|Y) echo "Ввели «y», продолжаем..."
-        	;;
-    	n|N) echo "Ввели «n», завершаем..."
-        	exit 1
-        	;;
-    	*) echo "Ничего не ввели. Выполняем действие по умолчанию... (заканчиваем работу)"
-			exit 1
-        	;;
-	esac
-else
-	echo "Для выполнения этого скрипта требуется добавить задание cron от того пользователя,"
-	echo "от которого будет выполняться."
-	echo "Для выполнения задания на резервное копироваения ежедневно в 23.30 требуетcя в crontab"
-	echo "добваить следующую строку:"
-	echo "30 23 * * * "$INSTALL_DIR"/FileBackup"
-	echo ""
-	echo "Если надо скопируйте эту строку для того чтобы добавить ее в crontab"
-	read -p "Для продолжения нажмите Enter и откроется crontab пользователя "$FileBackupUserName" ..."
-	`crontab -u $FileBackupUserName -e`
-fi
+##############################
+###  ТОЧКА СТАРТА СКРИПТА  ###
+##############################
+
+#Определяем путь запуска скрипта
+# current path resolver from http://stackoverflow.com/a/246128
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+INSTALL_DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+
+#Считываем основные параметры настроек из файла config.cfg
+. $INSTALL_DIR/config.cfg
+
+echo "Проверьте настройки скрипта резервного копирования:"
+echo " 1: Путь расположения скрипта: "$INSTALL_DIR
+echo " 2: Имя пользователя под которым будет выполнятся скрипт: "$USER
+echo " 3: Логфайл сессии резервного копирования: "$BackupLog
+echo " 4: Логфайл ошибок сессии резервного копирования: "$ErrorLog
+echo " 5: Логфайл ощибок доставки сообщений о сбоях скрипта резервного копирования: "$ErrorNotifyLog
+echo " 6: Получатель сообщений о ошибках скрипта резервного копирования: "$NotifyDestination
+echo ""
+echo "Если настройки верны и вы хотите продолжить установку нажните /y/"
+read item
+case "$item" in
+   	y|Y) echo "Ввели «y», продолжаем..."
+       	;;
+   	n|N) echo "Ввели «n», завершаем..."
+       	exit 1
+       	;;
+   	*) echo "Ничего не ввели. Выполняем действие по умолчанию... (заканчиваем работу)"
+		exit 1
+       	;;
+esac
 
 
-
-
-
-#??? - убрать когда закончу
-exit 1
-
-#Запрос пути к логфайлу сессии резервного копирования
-#По умолчанию BackupLog="/var/log/FileBackup.log"
-echo "Введите пути к логфайлу сессии резервного копирования. По умолчанию /var/log/FileBackup.log"
-read BackupLog
-if [ -z $BackupLog ]
-then
-	BackupLog="/var/log/FileBackup.log"
-fi
-
+#Создаем логфайл сессии резервного копирования
 echo "проверяем сущестует ли такой файл "$BackupLog
 
 if [ -a $BackupLog ]
@@ -75,15 +67,8 @@ then
 	exit 1
 fi
 
-#Запрос пути к логфайлу ошибок сессии резервного копирования
-#По умолчанию ErrorLog="/var/log/FileBackupERROR.log""
-echo "Введите пути к логфайлу сессии резервного копирования. По умолчанию /var/log/FileBackupERROR.log"
-read ErrorLog
-if [ -z $ErrorLog ]
-then
-	ErrorLog="/var/log/FileBackupERROR.log"
-fi
 
+#Создаем логфайл ошибок сессии резервного копирования
 echo "проверяем сущестует ли такой файл "$ErrorLog
 
 if [ -a $ErrorLog ]
@@ -110,15 +95,8 @@ then
 	exit 1
 fi
 
-#Запрос пути к логфайлу ошибок нотификации резервного копирования
-#По умолчанию ErrorNotifyLog="/var/log/FileBackupNotifyERROR.log"
-echo "Введите пути к логфайлу сессии резервного копирования. По умолчанию /var/log/FileBackupNotifyERROR.log"
-read ErrorNotifyLog
-if [ -z $ErrorNotifyLog ]
-then
-	ErrorNotifyLog="/var/log/FileBackupNotifyERROR.log"
-fi
 
+#Создаем логфайл ошибок доставки сообщений о сбоях скрипта резервного копирования
 echo "Проверяем сущестует ли такой файл "$ErrorNotifyLog
 
 if [ -a $ErrorNotifyLog ]
@@ -126,7 +104,7 @@ then
 	echo "Файл с таким именем уже существует."
 	exit 1
 fi
-#Создание файла лога сессии резервного копирования 
+#Создание ошибок доставки сообщений о сбоях скрипта резервного копирования 
 #
 `cat</dev/null>$ErrorNotifyLog`
 if [ -a $ErrorNotifyLog ]; 
@@ -145,37 +123,28 @@ then
 	exit 1
 fi
 
-#Определяем путь запуска скрипта
-# current path resolver from http://stackoverflow.com/a/246128
-SOURCE="${BASH_SOURCE[0]}"
-while [ -h "$SOURCE" ]; do
-  DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
-  SOURCE="$(readlink "$SOURCE")"
-  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
-done
-INSTALL_DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 
 #Задаем рекурсивно права на каталог установки скрипта резервного копирования и всех сопустствующих файлов
-#Для всех фалов кроме ./FileBackup права 644 владелец root
-#для ./FileBackup - 555 владелец root
+#Для всех фалов кроме ./FileBackup права 600 владелец root
+#для ./FileBackup - 500 владелец $USER
 echo "Задаем права на каталог установки скрипта: "$INSTALL_DIR
 if [ -d $INSTALL_DIR ] && [ -a $INSTALL_DIR/FileBackup ]
 then
-	`chmod -R 644 $INSTALL_DIR`
+	`chmod -R 600 $INSTALL_DIR`
 	if [ $? -ne 0 ];
 	then 
 		echo "Не удается задать права каталог установки скрипта: "$INSTALL_DIR
 		exit 1
 	fi
 
-	`chown -R root $INSTALL_DIR`
+	`chown -R $USER $INSTALL_DIR`
 	if [ $? -ne 0 ];
 	then 
 		echo "Не удается задать владельцем каталога установки скрипта ("$INSTALL_DIR") пользователя root"
 		exit 1
 	fi
 
-	`chmod 555 $INSTALL_DIR/FileBackup`
+	`chmod 500 $INSTALL_DIR/FileBackup`
 	if [ $? -ne 0 ];
 	then 
 		echo "Не удается задать права на выполнение для файла скрипта скрипта: "$INSTALL_DIR"/FileBackup"
@@ -185,6 +154,29 @@ else
 	echo "Не удалось правильно определить каталог установри скрипта: "$INSTALL_DIR
 	exit 1
 fi
+
+
+#Помогаем повесить задание в CRON
+echo ""
+echo "Для выполнения этого скрипта требуется добавить задание cron от того пользователя,"
+echo "от которого будет выполняться."
+echo "Для выполнения задания на резервное копироваения ежедневно в 23.30 требуетcя в crontab"
+echo "добваить следующую строку:"
+echo "30 23 * * * "$INSTALL_DIR"/FileBackup"
+echo ""
+echo "Если надо скопируйте эту строку для того чтобы добавить ее в crontab"
+read -p "Для продолжения нажмите Enter и откроется crontab текущего пользователя "$USER" ..."
+`crontab -u $USER -e`
+
+exit 0
+
+
+
+
+
+
+
+
 
 
 
