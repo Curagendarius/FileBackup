@@ -33,17 +33,28 @@ case $InstallDeinstall in
 	#
 
 	#Указываем для дополнительных скриптов, что запускаемся в режиме установки
-	WorkMission="deinstall"
+	WorkMission="install"
 
 	if [ -a $$INSTALL_DIR/config.cfg ]
 	then
 		#Если файл настроек существует, то 
 		# - предупреждаем что он есть и спрашиваем стоит ли продолжать установку;
-		# - если установку продолжать стоит, то читаем этот файл и выводим настройки  логов из него
+		# - если установку продолжать стоит, то читаем этот файл и выводим настройки логов из него
 
-		. $INSTALL_DIR/config.cfg
-
-		#???
+		echo "Обнаружен файл конфигурации, возможно скрипт уже установлен." 
+		echo "Если вы хотите продолжить устновку с использованием этого файла конфигурации то введите «y»"
+		echo "Если вы хотите прервать установку, то введите «n»"
+		case "$item" in
+	   	y|Y) echo "Ввели «y», продолжаем установку..."
+			. $INSTALL_DIR/config.cfg
+	       	;;
+	   	n|N) echo "Ввели «n», установка прервана..."
+	       	exit 1
+	       	;;
+	   	*) echo "Ничего не ввели. Выполняем действие по умолчанию... (заканчиваем работу)"
+			exit 1
+	       	;;
+		esac
 	else
 		#Задаем настройки расположения логов по умолчанию
 		BackupLog=$BackupLogDef
@@ -68,8 +79,8 @@ case $InstallDeinstall in
 	echo "" >> $INSTALL_DIR/config.cfg
 	echo "#Файлы лога архивации последней сессии" >> $INSTALL_DIR/config.cfg
 	echo "BackupLog="$BackupLog >> $INSTALL_DIR/config.cfg
-	echo "ErrorLog="ErrorLog >> $INSTALL_DIR/config.cfg
-	echo "ErrorNotifyLog="ErrorNotifyLog >> $INSTALL_DIR/config.cfg
+	echo "ErrorLog="$ErrorLog >> $INSTALL_DIR/config.cfg
+	echo "ErrorNotifyLog="$ErrorNotifyLog >> $INSTALL_DIR/config.cfg
 
 
 	read item
@@ -171,6 +182,7 @@ case $InstallDeinstall in
 	#Задаем рекурсивно права на каталог установки скрипта резервного копирования и всех сопустствующих файлов
 	#Для всех фалов кроме ./FileBackup права 600 владелец root
 	#для ./FileBackup - 500 владелец $USER
+	#Для папок 700
 	echo "Задаем права на каталог установки скрипта: "$INSTALL_DIR
 	if [ -d $INSTALL_DIR ] && [ -a $INSTALL_DIR/FileBackup ]
 	then
@@ -294,6 +306,16 @@ case $InstallDeinstall in
 			echo "Логфайл "$ErrorNotifyLog" не обнаружен - поэтому удалить его не удалось"
 		fi
 
+		#Удаляем файл конфигурации
+		`rm $INSTALL_DIR/config.cfg`
+		if [ -a $INSTALL_DIR/config.cfg ]; then
+			echo ""
+			echo "Не удалось удалить "$INSTALL_DIR/config.cfg" - удалите его вручную"
+		else
+			echo ""
+			echo "Файл "$INSTALL_DIR/config.cfg" успешно удален"
+		fi
+
 	else
 		echo ""
 		echo "Не обнаружен сайл настроек "$INSTALL_DIR/config.cfg" автоматическое удаление логфайлов невозможно - удалите их вручную"
@@ -323,47 +345,16 @@ case $InstallDeinstall in
 
 	#Восстанавливаем права на основную папку скрипта
 	#Задаем рекурсивно права на каталог установки скрипта резервного копирования и всех сопустствующих файлов
-	#Для всех фалов кроме ./setup права 666 
-	#Для ./setup - 766 
-	#Для папок 777
+	#Для всех фалов права 770 
 	echo "Задаем права на каталог установки скрипта: "$INSTALL_DIR
 	if [ -d $INSTALL_DIR ] && [ -a $INSTALL_DIR/FileBackup ]
 	then
-		`chmod -R 777 $INSTALL_DIR`
+		`chmod -R 770 $INSTALL_DIR`
 		if [ $? -ne 0 ];
 		then 
 			echo "Не удается задать права каталог установки скрипта: "$INSTALL_DIR
 			exit 1
 		fi
-
-		`chmod 766 $INSTALL_DIR/setup`
-		if [ $? -ne 0 ];
-		then 
-			echo "Не удается задать права на выполнение для файла скрипта скрипта: "$INSTALL_DIR"/setup"
-			exit 1
-		fi
-
-		#Задаем права на папки
-		# `chmod 777 $INSTALL_DIR/notify-dir`
-		# if [ $? -ne 0 ];
-		# then 
-		# 	echo "Не удается задать права на выполнение для файла скрипта скрипта: "$INSTALL_DIR"/notify-dir"
-		# 	exit 1
-		# fi
-
-		# `chmod 777 $INSTALL_DIR/extscript`
-		# if [ $? -ne 0 ];
-		# then 
-		# 	echo "Не удается задать права на выполнение для файла скрипта скрипта: "$INSTALL_DIR"/extscript"
-		# 	exit 1
-		# fi
-
-		# `chmod 777 $INSTALL_DIR`
-		# if [ $? -ne 0 ];
-		# then 
-		# 	echo "Не удается задать права на выполнение для файла скрипта скрипта: "$INSTALL_DIR
-		# 	exit 1
-		# fi
 
 	else
 		echo "Не удалось правильно определить каталог установри скрипта: "$INSTALL_DIR
