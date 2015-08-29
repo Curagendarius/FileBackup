@@ -187,12 +187,21 @@ funArhCreation ()
 		then
 			printf `(date +%Y-%m-%d-%H-%M-%S)`": Архив "$ArchFullName" успешно создан \n" >> $BackupLog
 
-			`mv $TempArchFullName $ArchFullName`
-			#Если переименовать не получилось то ошибка
-			if [ $? -eq 0 ];
+			if [ -a $ArchFullName ]; 
 			then
-				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" из источника "$SrcPath" не удалось переименовать временный файл архива \n" >> $BackupLog
-				flagOKGlobal=false
+				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" Архив с таким именем уже существует - невозможно переименовать временный файл архива \n" >> $BackupLog
+				flagOKGlobal=false	
+			else
+				`mv $TempArchFullName $ArchFullName`
+				#Если переименовать не получилось то ошибка
+				if [ -a $ArchFullName ];
+				then
+					printf `(date +%Y-%m-%d-%H-%M-%S)`": Временный файл архива "$ArchFullName" из источника "$SrcPath" успешно преименован\n" >> $BackupLog
+				else
+					printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" из источника "$SrcPath" не удалось переименовать временный файл архива \n" >> $BackupLog
+					flagOKGlobal=false
+				fi
+
 			fi
 
 			#Запускаем функцию удаления ненужных архивов (ротация архивов)
