@@ -103,7 +103,7 @@ funArhCreation ()
 	printf "\n" >> $BackupLog
 
 	#Ищем имя самого последнего ежемесячного архива 
-	OldEndMonthlyArh=`ls -t $ArchPath$ArchTemplate"-monthly"* -print 2>/dev/null | head -1`
+	OldEndMonthlyArh=`ls -t $ArchPath$ArchTemplate"-monthly"* | head -1`
 			
 	#Проверяем а есть ли вообще последний ежемесячный архив
 	if [ $OldEndMonthlyArh ]; 
@@ -113,16 +113,23 @@ funArhCreation ()
 		then
 			ArhSufix="monthly"
 		fi
+	else 
+		ArhSufix="monthly"
 	fi
 
 	#Ищем имя самого последнего еженедельного архива
-	OldEndWeeklyArh=`ls -t $ArchPath$ArchTemplate"-weekly"* -print 2>/dev/null | head -1`
+	OldEndWeeklyArh=`ls -t $ArchPath$ArchTemplate"-weekly"* | head -1`
 
-	#Проверяем а есть ли вообще последний ежемесячный архив
+	#Проверяем а есть ли вообще последний еженедельный архив
 	if [ $OldEndWeeklyArh ]; 
 	then
 		#Если неделя изменилась, а ArсhSufix="" и ArсhNumWeekly>0 то суфикс имени архива будет weekly 
 		if [ ${OldEndWeeklyArh:(-18):2} != `date +%U` ] && [ $ArhNumWeekly -gt 0 ] && [ ! $ArhSufix ]; 
+		then
+			ArhSufix="weekly"
+		fi
+	else
+		if [ ! $ArhSufix ]; 
 		then
 			ArhSufix="weekly"
 		fi
