@@ -160,16 +160,40 @@ funArhCreation ()
 		flagOKLocal=false
 	fi
 
+	#Создаем имя временного файла архива
+	TempArchFullName=$ArchPath$ArchTemplate"-temp"
+	# Если временный файл существует то удалить его - если удалить не получается то ошибка
+	if [ -a $TempArchFullName ] 
+	then
+		`rm $TempArchFullName`
+		if [ $? -eq 0 ];
+			then
+				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" из источника "$SrcPath" не удалось удалить временный файл архива перед его созданием \n" >> $BackupLog
+				flagOKGlobal=false
+			fi
+	fi
+
+
 	#Если ошибок подготовки архивации этого задания на архивацию не было, то начинаем архивацию
 	if [ flagOKLocal ]; 
 	then
 		printf `(date +%Y-%m-%d-%H-%M-%S)`": Начало создания архива "$ArchFullName" из источника "$SrcPath"\n" >> $BackupLog
-		`tar -czpf $ArchFullName $SrcPath 2>> $BackupLog`
+		
+
+		`tar -czpf $TempArchFullName $SrcPath 2>> $BackupLog`
 
 		#Проверяем удачно ли произошло архивирование
 		if [ $? -eq 0 ];
 		then
 			printf `(date +%Y-%m-%d-%H-%M-%S)`": Архив "$ArchFullName" успешно создан \n" >> $BackupLog
+
+			`mv $TempArchFullName $ArchFullName`
+			#Если переименовать не получилось то ошибка
+			if [ $? -eq 0 ];
+			then
+				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" из источника "$SrcPath" не удалось переименовать временный файл архива \n" >> $BackupLog
+				flagOKGlobal=false
+			fi
 
 			#Запускаем функцию удаления ненужных архивов (ротация архивов)
 			funArhRotation
