@@ -5,7 +5,7 @@ funArhRotation ()
 {
 	#Удаление старых ежемесячных архивов
 	let "TailArg = ArhNumMonthly + 1"
-	IFS=$'\n'; for NextOldMonthly in `ls -t $ArchPath$ArchTemplate"-monthly"* -print 2>/dev/null | tail -n +$TailArg`; 
+	IFS=$'\n'; for NextOldMonthly in `ls -t $ArchPath$ArchTemplate"-monthly"* | tail -n +$TailArg`; 
 	do
 		if [ $NextOldMonthly != $ArchFullName ]; 
 		then
@@ -27,7 +27,7 @@ funArhRotation ()
 
 	#Удаление старых еженедельных архивов
 	let "TailArg = ArhNumWeekly + 1"
-	IFS=$'\n'; for NextOldWeekly in `ls -t $ArchPath$ArchTemplate"-weekly"* -print 2>/dev/null | tail -n +$TailArg`; 
+	IFS=$'\n'; for NextOldWeekly in `ls -t $ArchPath$ArchTemplate"-weekly"* | tail -n +$TailArg`; 
 	do
 		if [ $NextOldWeekly != $ArchFullName ]; 
 		then
@@ -49,7 +49,7 @@ funArhRotation ()
 
 	#Удаление старых ежедневных архивов
 	let "TailArg = ArhNumDaily + 1"
-	IFS=$'\n'; for NextOldDaily in `ls -t $ArchPath$ArchTemplate"-daily"* -print 2>/dev/null | tail -n +$TailArg`; 
+	IFS=$'\n'; for NextOldDaily in `ls -t $ArchPath$ArchTemplate"-daily"* | tail -n +$TailArg`; 
 	do
 		if [ $NextOldDaily != $ArchFullName ]; 
 		then
@@ -212,36 +212,53 @@ while [ -h "$SOURCE" ]; do
 done
 INSTALL_DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 
-#Считываем основные параметры настроек из файла config.cfg
-. $INSTALL_DIR/config.cfg
+#Задаем рассположение логфайлов
+BackupLog="/var/log/FileBackup.log"
+ErrorLog="/var/log/FileBackupERROR.log"
 
-#Если основные параметры настроек неверны то ошибка
-if [ $? -eq 0 ];
-then
-	printf `(date +%Y-%m-%d-%H-%M-%S)`": Успешно прочитаны настройки из внешнего файла config.cfg \n" >> $BackupLog
-else
-	echo "ОШИБКА прочитения настроек из внешнего файла config.cfg"
-	flagOKGlobal=false
-fi 
 
 if [ ! -w $BackupLog ]
 then
-	echo "ОШИБКА файл лога "$BackupLog" не обнаружен или у файла нет права на запись"
-	flagOKGlobal=false
+	`cat</dev/null>$BackupLog`
+	if [ -a $BackupLog ] 
+	then
+		echo "Файл "$BackupLog" успешно создан"
+
+		# Задаем права на чтение и редактирование для всех (666) на логфайл сессии резервного копирования
+		`chmod 666 $BackupLog`
+		if [ $? -ne 0 ];
+		then 
+			echo "Не удается задать права на логфайл "$BackupLog
+			flagOKGlobal=false
+		fi
+	else
+		echo "Не получается создать файл с именем "$BackupLog
+		flagOKGlobal=false
+	fi
 fi
 
 if [ ! -w $ErrorLog ]
 then
-	echo "ОШИБКА файл лога "$ErrorLog" не обнаружен или у файла нет права на запись"
-	flagOKGlobal=false
+	#Создание файла лога сессии резервного копирования 
+	`cat</dev/null>$ErrorLog`
+	if [ -a $ErrorLog ]; 
+	then
+		echo "Файл "$ErrorLog" успешно создан"
+		# Задаем права на чтение и редактирование для всех (666) на логфайл ошибок сессии резервного копирования
+		`chmod 666 $ErrorLog`
+		if [ $? -ne 0 ];
+		then 
+			echo "Не удается задать права на логфайл "$ErrorLog
+			flagOKGlobal=false
+		fi
+	else
+		echo "Не получается создать файл с именем "$ErrorLog
+		flagOKGlobal=false
+	fi
 fi
 
-if [ ! -w $ErrorNotifyLog ]
-then
-	echo "ОШИБКА файл лога "$ErrorNotifyLog" не обнаружен или у файла нет права на запись"
-	flagOKGlobal=false
-fi
-
+echo "Для установки скрипта в cron запустите crontab -e и добавтье следующую строку для выполнения каждый день в 23.30"
+echo "30 23 * * * "$INSTALL_DIR"/FileBackup"
 
 #Очищаем старый лог файл если он есть
 cat /dev/null > $BackupLog
@@ -280,12 +297,8 @@ then
 			SrcListStringIterator="4"
 				;;
 
-			"4" )
-			ScriptName=$NextListElement
-			SrcListStringIterator="5"
-				;;	
 
-			"5" )
+			"4" )
 			ExtParams=$NextListElement
 			SrcListStringIterator="1"
 
@@ -328,27 +341,17 @@ then
 		printf "\n" >> $BackupLog
 		printf `(date +%Y-%m-%d-%H-%M-%S)`": ВСЕ ЗАДАНИЯ АРХИВИРОВАНИЯ ВЫПОЛНЕННЫ УСПЕШНО" >> $BackupLog
 		cat /dev/null > $ErrorLog
+		###? сообщаем о успешном выполнении резервного копирования
+
+		###? пишем в флаг файл дату и время последнего успешного завершения резервного копирования
+
 	else
 		echo "ПРИ ВЫПОЛНЕНИИ ЗАДАНИЙ АРХИВИРОВАНИЯ БЫЛИ ОБНАРУЖЕНЫ ОШИБКИ. Подробности выполнения смотрте в логе "$ErrorLog
 		printf "\n" >> $BackupLog
 		printf `(date +%Y-%m-%d-%H-%M-%S)`": ЗАДАНИЯ АРХИВИРОВАНИЯ ВЫПОЛНЕННЫ С ОШИБКАМИ !!! \n" >> $BackupLog
 		printf "____________________________________________\n" >> $ErrorLog
 		cat $BackupLog >> $ErrorLog
-		#отправляем $BackupLog по электронной почте с сообщением о ошибке
-		if [ -r $INSTALL_DIR/notify ]
-		then
-			. $INSTALL_DIR/notify >> $ErrorNotifyLog
+		###? отправляем $BackupLog с сообщением о ошибке
 
-			#Если ошибка выполнения уведомления то пишем сообщение в лог ошибок нотификации
-			if [ $? -eq 0 ];
-			then
-				cat /dev/null > $ErrorNotifyLog
-			else
-				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА: скрипта уведомления !!! \n" >> $ErrorNotifyLog
-			fi 
-		else
-			echo "Не обнаружен файл нотификации или отсутствуют права на чтение !!!"
-			printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА: файл скрипта уведомления не найден или отсутствуют права на чтение !!! \n" >> $ErrorNotifyLog
-		fi
 	fi
 fi	
