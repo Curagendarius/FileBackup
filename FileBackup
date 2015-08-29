@@ -157,7 +157,7 @@ funArhCreation ()
 	if [ flagOKLocal ]; 
 	then
 		printf `(date +%Y-%m-%d-%H-%M-%S)`": Начало создания архива "$ArchFullName" из источника "$SrcPath"\n" >> $BackupLog
-#		`tar -czpf $ArchFullName $SrcPath 2>> $BackupLog`
+		`tar -czpf $ArchFullName $SrcPath 2>> $BackupLog`
 
 		#Проверяем удачно ли произошло архивирование
 		if [ $? -eq 0 ];
