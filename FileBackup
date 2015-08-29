@@ -167,27 +167,6 @@ funArhCreation ()
 			#Запускаем функцию удаления ненужных архивов (ротация архивов)
 			funArhRotation
 
-			#Выполняем внешний скрипт, если это необходимо
-			if [ $ScriptName != "no" ] 
-			then
-				ScriptPatch=$INSTALL_DIR/$ScriptName
-				if [ -r $ScriptPatch ]
-				then
-					#Если ошибка выполнения внешнего скрипта то ошибка архива
-					printf `(date +%Y-%m-%d-%H-%M-%S)`": Начало выполнения внешнено скрипта "$ScriptName" для архива "$ArchFullName" из источника "$SrcPath"\n" >> $BackupLog
-					. $ScriptPatch >> $BackupLog
-					if [ $? -eq 0 ];
-					then
-						printf `(date +%Y-%m-%d-%H-%M-%S)`": Успешно выполен внешний скрипт "$ScriptName" для архива "$ArchFullName" из источника "$SrcPath"\n" >> $BackupLog
-					else
-						printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА выполения внешнего скрипта "$ScriptName" для архива "$ArchFullName" из источника "$SrcPath"\n" >> $BackupLog
-					fi 
-				else
-					printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА для архива с именем: "$ArchFullName" из источника "$SrcPath" Дополнительный скрипт не найден или нет прав на чтение \n" >> $BackupLog
-					flagOKGlobal=false
-				fi
-			fi
-
 		else
 			printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" из источника "$SrcPath" Процесс создания архива прошел с ошибками \n" >> $BackupLog
 			flagOKGlobal=false
