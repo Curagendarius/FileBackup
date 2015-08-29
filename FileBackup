@@ -157,7 +157,7 @@ funArhCreation ()
 	if [ flagOKLocal ]; 
 	then
 		printf `(date +%Y-%m-%d-%H-%M-%S)`": Начало создания архива "$ArchFullName" из источника "$SrcPath"\n" >> $BackupLog
-		`tar -czpf $ArchFullName $SrcPath 2>> $BackupLog`
+#		`tar -czpf $ArchFullName $SrcPath 2>> $BackupLog`
 
 		#Проверяем удачно ли произошло архивирование
 		if [ $? -eq 0 ];
@@ -284,22 +284,26 @@ then
 		case $SrcListStringIterator in
 			"1"|"0" )
 			SrcPath=$NextListElement
+echo $SrcPath
 			SrcListStringIterator="2"
 				;;
 
 			"2" )
 			ArchPath=$NextListElement
+echo $ArchPath
 			SrcListStringIterator="3"
 				;;
 
 			"3" )
 			ArchTemplate=$NextListElement
+echo $ArchTemplate
 			SrcListStringIterator="4"
 				;;
 
 
 			"4" )
 			ExtParams=$NextListElement
+echo $ExtParams
 			SrcListStringIterator="1"
 
 			#Разбираем строку дополнительных параетров
@@ -315,14 +319,17 @@ then
 			 	case $ExtParamsStringIterator in
 			 		"1"|"0" )
 					ExtParamsStringIterator="2"
+echo $ArhNumDaily
 					ArhNumDaily=$NextParam
 			 			;;
 			 		"2" )
 					ExtParamsStringIterator="3"
+echo $ArhNumWeekly
 					ArhNumWeekly=$NextParam
 			 			;;
 			 		"3" )
 					ArhNumMonthly=$NextParam
+echo $ArhNumMonthly
 			 			;;	
 			 	esac
 			done 
