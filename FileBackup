@@ -263,26 +263,26 @@ then
 		case $SrcListStringIterator in
 			"1"|"0" )
 			SrcPath=$NextListElement
-echo $SrcPath
+echo "SrcPath="$SrcPath
 			SrcListStringIterator="2"
 				;;
 
 			"2" )
 			ArchPath=$NextListElement
-echo $ArchPath
+echo "ArchPath="$ArchPath
 			SrcListStringIterator="3"
 				;;
 
 			"3" )
 			ArchTemplate=$NextListElement
-echo $ArchTemplate
+echo "ArchTemplate="$ArchTemplate
 			SrcListStringIterator="4"
 				;;
 
 
 			"4" )
 			ExtParams=$NextListElement
-echo $ExtParams
+echo "ExtParams="$ExtParams
 			SrcListStringIterator="1"
 
 			#Разбираем строку дополнительных параетров
@@ -298,17 +298,17 @@ echo $ExtParams
 			 	case $ExtParamsStringIterator in
 			 		"1"|"0" )
 					ExtParamsStringIterator="2"
-echo $ArhNumDaily
 					ArhNumDaily=$NextParam
+echo "ArhNumDaily="$ArhNumDaily
 			 			;;
 			 		"2" )
 					ExtParamsStringIterator="3"
-echo $ArhNumWeekly
 					ArhNumWeekly=$NextParam
+echo "ArhNumWeekly="$ArhNumWeekly
 			 			;;
 			 		"3" )
 					ArhNumMonthly=$NextParam
-echo $ArhNumMonthly
+echo "ArhNumMonthly="$ArhNumMonthly
 			 			;;	
 			 	esac
 			done 
