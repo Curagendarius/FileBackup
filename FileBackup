@@ -230,11 +230,92 @@ while [ -h "$SOURCE" ]; do
   [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
 done
 INSTALL_DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+SCRIPT_NAME=$INSTALL_DIR"/"$(basename "$SOURCE")
 
 #Задаем рассположение логфайлов
 BackupLog="/var/log/FileBackup.log"
 ErrorLog="/var/log/FileBackupERROR.log"
+FileWorkCFG=$INSTALL_DIR"/work.cfg"
 
+#Если нет файла work.cfg то производим установку
+if [ ! -a $FileWorkCFG ]
+then
+	#Пишем всякое для пользователя-установщика
+	echo "Призводим установку скрипта "$SCRIPT_NAME
+
+
+	#Создаем файл work.cfg
+	echo "Создаем файл work.cfg"
+
+	echo "# В данном списке по каждому источнику архивации заполняется следующие строки:" > $FileWorkCFG
+	echo "#	1) путь к папке источника	архивации (что архивируем)" >> $FileWorkCFG
+	echo "#	2) путь к папке куда будем складывать архивы" >> $FileWorkCFG
+	echo "#	3) шаблон имени архива. К шаблогу будет добавлен суфикс типа (Daily, Weekly, Monthly) архива и дата арихива для получения имени архива" >> $FileWorkCFG
+	echo "#	4) full или diff - если full, то делаем все архивы будут полными; если diff, то ежедневные архивы всегда диференциальные относительно последнего полного архива " >> $FileWorkCFG 		
+	echo "#	5) сторка дополнительных параметров с разделителем |" >> $FileWorkCFG
+	echo "#		a) количество ежедневных копий" >> $FileWorkCFG
+	echo "#		c) количество еженедельных копий (необязательный параметр)" >> $FileWorkCFG
+	echo "#		d) количество ежемесячных копий (необязательный параметр)" >> $FileWorkCFG
+	echo "#" >> $FileWorkCFG
+	echo "# Пример:" >> $FileWorkCFG
+	echo "# /var/lib/plexmediaserver" >> $FileWorkCFG
+	echo "# /mnt/BackUp/Plex/" >> $FileWorkCFG
+	echo "# plexSettings" >> $FileWorkCFG
+	echo "# full" >> $FileWorkCFG
+	echo "# 40" >> $FileWorkCFG
+	echo "#" >> $FileWorkCFG
+	echo "# /usr/plex" >> $FileWorkCFG
+	echo "# /mnt/Bаckup/Plex/" >> $FileWorkCFG
+	echo "# plexProg" >> $FileWorkCFG
+	echo "# full" >> $FileWorkCFG
+	echo "# 4|4|6" >> $FileWorkCFG
+	echo "#" >> $FileWorkCFG
+	echo "# /home/user/temp" >> $FileWorkCFG
+	echo "# /mnt/Backup/НomeUserTemp/" >> $FileWorkCFG
+	echo "# HomeUserTemp" >> $FileWorkCFG
+	echo "# diff" >> $FileWorkCFG
+	echo "# 3" >> $FileWorkCFG
+	echo "#" >> $FileWorkCFG
+	echo "# Первое задание архивации" >> $FileWorkCFG
+
+	#Устанавливаем права на файл work.cfg
+	if [ -a $FileWorkCFG ]
+	then
+		`chmod 660 $FileWorkCFG`
+		if [ $? -ne 0 ];
+		then 
+			echo "Не удается задать права на логфайл "$FileWorkCFG
+			flagOKGlobal=false
+		fi
+	else
+		echo "Не удается создать файл "$FileWorkCFG
+		flagOKGlobal=false
+	fi
+
+	#Устанавливаем права на себя
+	if [ -a $SCRIPT_NAME ]
+	then
+		`chmod 760 $SCRIPT_NAME`
+		if [ $? -ne 0 ];
+		then 
+			echo "Не удается задать права на логфайл "$SCRIPT_NAME
+			flagOKGlobal=false
+		fi
+	else
+		echo "Нет доступа к самому себе - "$SCRIPT_NAME
+		flagOKGlobal=false
+	fi
+
+	#Пишем всякое для пользователя-установщика
+	if [ flagOKGlobal ]; 
+	then
+		echo "Для установки скрипта в cron запустите crontab -e и добавтье следующую строку для выполнения каждый день в 23.30"
+		echo "30 23 * * * "$INSTALL_DIR"/FileBackup"
+		echo "Задания на архивирование задайте в файле work.cfg"
+	else
+		echo "Во время установки скрипта возникли ошибки!!!"
+	fi
+fi
 
 if [ ! -w $BackupLog ]
 then
@@ -243,8 +324,8 @@ then
 	then
 		echo "Файл "$BackupLog" успешно создан"
 
-		# Задаем права на чтение и редактирование для всех (666) на логфайл сессии резервного копирования
-		`chmod 666 $BackupLog`
+		# Задаем права на чтение и редактирование для всех (664) на логфайл сессии резервного копирования
+		`chmod 664 $BackupLog`
 		if [ $? -ne 0 ];
 		then 
 			echo "Не удается задать права на логфайл "$BackupLog
@@ -263,8 +344,8 @@ then
 	if [ -a $ErrorLog ]; 
 	then
 		echo "Файл "$ErrorLog" успешно создан"
-		# Задаем права на чтение и редактирование для всех (666) на логфайл ошибок сессии резервного копирования
-		`chmod 666 $ErrorLog`
+		# Задаем права на чтение и редактирование для всех (664) на логфайл ошибок сессии резервного копирования
+		`chmod 664 $ErrorLog`
 		if [ $? -ne 0 ];
 		then 
 			echo "Не удается задать права на логфайл "$ErrorLog
@@ -276,8 +357,7 @@ then
 	fi
 fi
 
-echo "Для установки скрипта в cron запустите crontab -e и добавтье следующую строку для выполнения каждый день в 23.30"
-echo "30 23 * * * "$INSTALL_DIR"/FileBackup"
+
 
 #Очищаем старый лог файл если он есть
 cat /dev/null > $BackupLog
