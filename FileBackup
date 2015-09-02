@@ -153,12 +153,12 @@ funArhCreation ()
 	then
 	 	#Ищем журнал поддержки диференциальных копий последнего полного архива (он имеет имя кончающееся на .diff)
 	 	ArchNameDiffFull=`ls -t $ArchPath$ArchTemplate*.diff | head -n 1`
-	 	if [ ! -a $ArchNameDiffFull ]
+	 	if [ -a $ArchNameDiffFull ]
 	 	then
-	 		flagFullNow=true
-	 	else
 	 		#Генерим суффикс для имени архива с указанием на полный архив
 	 		ArhDiffSufix=`echo ${ArchNameDiffFull##*/} | sed 's/.diff//g' | rev | cut -c 1-25 | rev`
+	 	else
+	 		flagFullNow=true		
 	 	fi
 	fi 
 
@@ -324,7 +324,7 @@ funArhCreation ()
 			#Если файл с именем файла неудавшегося архива существует то удаляем его
 			###?
 
-			#Переименовываем фременный файл неудавшего архива
+			#Переименовываем временный файл неудавшего архива
 			###?
 
 			#Создаем имя для файла журнала архива с поддержкой диференциальных копий
@@ -364,8 +364,10 @@ ErrorLog="/var/log/FileBackupERROR.log"
 FileWorkCFG=$INSTALL_DIR"/work.cfg"
 
 #Если нет файла work.cfg то производим установку
-if [ ! -a $FileWorkCFG ]
+if [ -a $FileWorkCFG ]
 then
+	echo "Запускаем скрипт в рабочем режиме"
+else
 	#Пишем всякое для пользователя-установщика
 	echo "Призводим установку скрипта "$SCRIPT_NAME
 
