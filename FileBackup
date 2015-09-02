@@ -210,9 +210,9 @@ funArhCreation ()
 		if [ $ArchType="diff" ]
 		then
 			#Временное имя файла журнала диференциального архива
-			TempArchDiffNаme=$ArchPath$ArchTemplate"-tempdiff"
+			TempArchDiffName=$ArchPath$ArchTemplate"-tempdiff"
 			#Если такой файл существует то ошибка локальная и глобальная
-			if [ -a $TempArchDiffNаme ]
+			if [ -a $TempArchDiffName ]
 			then
 				flagOKLocal=false
 				flagOKGlobal=false
@@ -224,8 +224,8 @@ funArhCreation ()
 	#Если надо делать диференциальный архив то находим копируем последний опортный журнал архива как текущий временный журнал
 	if [ $ArchType="diff" ] && [ ! $flagFullNow ] 
 	then
-		`cp $ArchNameDiffFull $TempArchDiffNаme`
-		if [ -a $TempArchDiffNаme ]
+		`cp $ArchNameDiffFull $TempArchDiffName`
+		if [ -a $TempArchDiffName ]
 		then
 			printf `(date +%Y-%m-%d-%H-%M-%S)`": Временный файл журнала архива  "$ArchFullName" из источника "$SrcPath" успешно преименован из файла журнала последнего полного архива "$ArchNameDiffFull"\n" >> $BackupLog
 		else
@@ -246,8 +246,7 @@ funArhCreation ()
 		if [ $ArchType="diff" ]
 		then
 			#делаем архив с поддержкой диференциальных копий
-			`tar -czpf $TempArchFullName $SrcPath -g $TempArchDiffNаme 2>> $BackupLog`
-
+			`tar -czpf $TempArchFullName $SrcPath -g $TempArchDiffName 2>> $BackupLog`
 		else
 			#делаем архив без поддержки диференциальных копий
 			`tar -czpf $TempArchFullName $SrcPath 2>> $BackupLog`
@@ -289,7 +288,7 @@ funArhCreation ()
 							printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" из источника "$SrcPath". Имя файла для нового журнала последнего полного архива занято "$ArchNameDiffFull" \n" >> $BackupLog
 							flagOKGlobal=false
 						else
-							`mv $TempArchDiffNаme $ArchNameDiffFull`
+							`mv $TempArchDiffName $ArchNameDiffFull`
 							if [ -a $ArchNameDiffFull ]
 							then
 								printf `(date +%Y-%m-%d-%H-%M-%S)`": Успешно создан файл "$ArchNameDiffFull" для нового журнала последнего полного архива с именем: "$ArchFullName" из источника "$SrcPath"\n" >> $BackupLog
@@ -300,13 +299,13 @@ funArhCreation ()
 						fi
 					else
 						#Если это дифиренциальный архив, удаляем временный журнал архива с поддержкой диференциальных копий
-						`rm -f $TempArchDiffNаme 2>> $BackupLog`
-						if [ -a $TempArchDiffNаme ]
+						`rm -f $TempArchDiffName 2>> $BackupLog`
+						if [ -a $TempArchDiffName ]
 						then
-							printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" из источника "$SrcPath". Не удалось удалить временный файл журнала поддержки диференциальных копий "$TempArchDiffNаme"\n" >> $BackupLog
+							printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" из источника "$SrcPath". Не удалось удалить временный файл журнала поддержки диференциальных копий "$TempArchDiffName"\n" >> $BackupLog
 							flagOKGlobal=false
 						else
-							printf `(date +%Y-%m-%d-%H-%M-%S)`": Успешно удален временный файл журнала поддержки диференциальных копий "$TempArchDiffNаme" для архива с именем: "$ArchFullName" из источника "$SrcPath"\n" >> $BackupLog	
+							printf `(date +%Y-%m-%d-%H-%M-%S)`": Успешно удален временный файл журнала поддержки диференциальных копий "$TempArchDiffName" для архива с именем: "$ArchFullName" из источника "$SrcPath"\n" >> $BackupLog	
 						fi
 					fi
 				fi
@@ -526,11 +525,14 @@ then
 
 			"4" )
 			ArchType=$NextListElement
-			if [ ! [ $ArchType="full" ] || [ $ArchType="diff" ] ]
+			if [[ $ArchType="full" || $ArchType="diff" ]]
 			then
 				flagOKGlobal=false
 				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА чтения параметра типа архива "$SrcPath" из файла конфигурации - допустимо только одини из 2 видов параметров (full или diff) \n" >> $BackupLog
 			fi
+
+
+
 			SrcListStringIterator="5"
 				;;
 
