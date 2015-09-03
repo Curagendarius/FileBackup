@@ -159,6 +159,9 @@ funArhCreation ()
 	 		#Генерим суффикс для имени архива с указанием на полный архив
 	 		ArhDiffSufix=`echo ${ArchNameDiffFull##*/} | sed 's/.diff//g' | rev | cut -c 1-22 | rev`
 	 	else
+	 		#Если опорного архива нет то сбудем делать или weekly или monthly full
+	 		#Но если настройками назначены только daily и при этом поставлен режим diff - то сообщаем админу о шибке 
+	 		###?
 	 		flagFullNow=true		
 	 	fi
 	fi 
