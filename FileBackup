@@ -86,6 +86,9 @@ funArhCreation ()
 		ArchPath=$ArchPath"/"
 	fi
 
+	#Имя флагового файла последнего удачного архива
+	FileFlagOK=$ArchPath$ArchTemplate".flag"
+
 	#Если источник недоступен для чтения, то ошибка создания архива
 	if [  ! -r $SrcPath ] 
 	then
@@ -105,38 +108,44 @@ funArhCreation ()
 	#Формируем имя архива
 	printf "\n" >> $BackupLog
 
+	
+	
 	#Ищем имя самого последнего ежемесячного архива 
-	OldEndMonthlyArh=`ls -t $ArchPath$ArchTemplate"-monthly"* | head -1`
+	OldEndMonthlyArh=`ls -t $ArchPath$ArchTemplate"-monthly"*".tar.gz" | head -1`
 			
 	#Проверяем а есть ли вообще последний ежемесячный архив
 	if [ -a $OldEndMonthlyArh ] && [ ! -z $OldEndMonthlyArh ]
 	then
 		#Если у нового архива месяц новый и ArhNumMonthly>0 то суфикс имени архива будет monthly
-		if [ ${OldEndMonthlyArh:(-24):2} != `date +%m` ] && [ $ArhNumMonthly -gt 0 ]; 
+		if [ ${OldEndMonthlyArh:(-24):2} != `date +%m` ] && [ $ArhNumMonthly -gt 0 ] && [ $InputParam == "nodaily" ]
 		then
 			ArhSufix="monthly"
 		fi
 	else 
-		ArhSufix="monthly"
+		if [ $ArhNumMonthly -gt 0 ]
+		then
+			ArhSufix="monthly"
+		fi
 	fi
 
 	#Ищем имя самого последнего еженедельного архива
-	OldEndWeeklyArh=`ls -t $ArchPath$ArchTemplate"-weekly"* | head -1`
+	OldEndWeeklyArh=`ls -t $ArchPath$ArchTemplate"-weekly"*".tar.gz" | head -1`
 
 	#Проверяем а есть ли вообще последний еженедельный архив
 	if [ -a $OldEndWeeklyArh ] && [ ! -z $OldEndWeeklyArh ]
 	then
 		#Если неделя изменилась, а ArсhSufix="" и ArсhNumWeekly>0 то суфикс имени архива будет weekly 
-		if [ ${OldEndWeeklyArh:(-18):2} != `date +%U` ] && [ $ArhNumWeekly -gt 0 ] && [ -z $ArhSufix ]; 
+		if [ ${OldEndWeeklyArh:(-18):2} != `date +%U` ] && [ $ArhNumWeekly -gt 0 ] && [ -z $ArhSufix ]  && [ $InputParam == "nodaily" ]
 		then
 			ArhSufix="weekly"
 		fi
 	else
-		if [ -z $ArhSufix ] 
+		if [ -z $ArhSufix ] && [ $ArhNumWeekly -gt 0 ]
 		then
 			ArhSufix="weekly"
 		fi
 	fi
+	
 
 	#Если ArhSufix="" и ArсhNumDaily>0 то суфикс имени архива будет daily
 	#
@@ -159,7 +168,7 @@ funArhCreation ()
 	 		#Генерим суффикс для имени архива с указанием на полный архив
 	 		ArhDiffSufix=`echo ${ArchNameDiffFull##*/} | sed 's/.diff//g' | rev | cut -c 1-22 | rev`
 	 	else
-	 		#Если опорного архива нет то сбудем делать или weekly или monthly full
+	 		#Если опорного архива нет то будем делать или weekly или monthly full
 	 		#Но если настройками назначены только daily и при этом поставлен режим diff - то сообщаем админу о шибке 
 	 		###?
 	 		flagFullNow=true		
@@ -206,8 +215,21 @@ funArhCreation ()
 		flagOKLocal=false
 		
 		#Если предельное время исполнения архива прошло, то сообщаем о глобальной ошибке
-		###?
+		if [ -r $FileFlagOK ]
+		then
+			TimeLastOk=`head -n1 $FileFlagOK | tr -d "\n"`
+			NowTime=`date +"%s"`
+			let "DeltaTime = ( NowTime - TimeLastOk ) / 3600"
+			if [ $DeltaTime -ge $ArhTime ]; then
+				flagOKGlobal=false
+				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА: Обнаружено, что предыдущее выполнение архива "$ArchFullName" из источника "$SrcPath" еще не завершено, а предельное время создания архива "$ArhTime" часов превышено и составляет "$DeltaTime" часов\n" >> $BackupLog
+			else
+				printf `(date +%Y-%m-%d-%H-%M-%S)`": Обнаружено, что предыдущее выполнение архива "$ArchFullName" из источника "$SrcPath" еще не завершено, но предельное время "$ArhTime" часов еще не превышено, так как прошло всего "$DeltaTime" часов\n" >> $BackupLog
+			fi			
+		else
 			flagOKGlobal=false
+			printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА: Обнаружено, что предыдущее выполнение архива "$ArchFullName" из источника "$SrcPath" еще не завершено\n" >> $BackupLog
+		fi			
 	else
 
 		#Если надо то создаем имя файла журнала диференциального архива
@@ -242,7 +264,7 @@ funArhCreation ()
 	
 
 	#Если ошибок подготовки архивации этого задания на архивацию не было, то начинаем архивацию
-	if [ $flagOKLocal = true ]; 
+	if [ $flagOKLocal = true ] 
 	then
 		printf `(date +%Y-%m-%d-%H-%M-%S)`": Начало создания архива "$ArchFullName" из источника "$SrcPath"\n" >> $BackupLog
 		
@@ -273,9 +295,23 @@ funArhCreation ()
 				if [ -a $ArchFullName ] && [ ! -z $ArchFullName ]
 				then
 					printf `(date +%Y-%m-%d-%H-%M-%S)`": Временный файл архива "$ArchFullName" из источника "$SrcPath" успешно преименован\n" >> $BackupLog
+					
+					#Так как успешно создали полный архив, то удаляем все неудачные архивы (.error), которые найдем
+					if [ $flagFullNow = true ]
+					then
+						`rm -f $ArchPath$ArchTemplate*.error 2>> $BackupLog`
+						### Если ошибочные архивы все еще есть то ошибка
+						ErrorArchTestName=`ls -t $ArchPath$ArchTemplate*.error | head -n 1`
+	 					if [ -a $ErrorArchTestName ] && [ ! -z $ErrorArchTestName ]
+	 					then
+	 						printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА после создания арзива с именем: "$ArchFullName". Не удалось удалить файлы ошибочных архивов после успешного создания полного архива.\n" >> $BackupLog
+	 						flagOKGlobal=false
+	 					fi
+					fi
 				else
 					printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" из источника "$SrcPath" не удалось переименовать временный файл архива \n" >> $BackupLog
 					flagOKGlobal=false
+					flagOKLocal=false
 				fi
 
 				#Если в этом архиве включена поддержка диференциальных копий то надо обработать журналы
@@ -291,14 +327,16 @@ funArhCreation ()
 						then
 							printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" из источника "$SrcPath". Имя файла для нового журнала последнего полного архива занято "$ArchNameDiffFull" \n" >> $BackupLog
 							flagOKGlobal=false
+							flagOKLocal=false
 						else
 							`mv $TempArchDiffName $ArchNameDiffFull`
 							if [ -a $ArchNameDiffFull ] && [ ! -z $ArchNameDiffFull ]
 							then
-								printf `(date +%Y-%m-%d-%H-%M-%S)`": Успешно создан файл "$ArchNameDiffFull" для нового журнала последнего полного архива с именем: "$ArchFullName" из источника "$SrcPath"\n" >> $BackupLog
+								printf `(date +%Y-%m-%d-%H-%M-%S)`": Успешно скопирован из временного файл "$ArchNameDiffFull" для нового журнала последнего полного архива с именем: "$ArchFullName" из источника "$SrcPath"\n" >> $BackupLog
 							else
-								printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" из источника "$SrcPath". Успешно создан файл для нового журнала последнего полного архива "$ArchNameDiffFull" \n" >> $BackupLog
+								printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" из источника "$SrcPath". Не удалось скопировать временный файл для нового журнала последнего полного архива "$ArchNameDiffFull" \n" >> $BackupLog
 								flagOKGlobal=false
+								flagOKLocal=false
 							fi
 						fi
 					else
@@ -308,6 +346,7 @@ funArhCreation ()
 						then
 							printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" из источника "$SrcPath". Не удалось удалить временный файл журнала поддержки диференциальных копий "$TempArchDiffName"\n" >> $BackupLog
 							flagOKGlobal=false
+							flagOKLocal=false
 						else
 							printf `(date +%Y-%m-%d-%H-%M-%S)`": Успешно удален временный файл журнала поддержки диференциальных копий "$TempArchDiffName" для архива с именем: "$ArchFullName" из источника "$SrcPath"\n" >> $BackupLog	
 						fi
@@ -315,14 +354,27 @@ funArhCreation ()
 				fi
 			fi
 
-			#Запускаем функцию удаления ненужных архивов (ротация архивов)
-			funArhRotation
+			#Если ошибок нет, то обнавляем флаговый файл с временем последнего удачного архива
+			if [ $flagOKLocal == true ]
+			then
+				TempOKTime=`date +"%s"`
+				`echo $TempOKTime > $FileFlagOK`
 
+				#Проверяем удалось ли обновить флаговый файл удачного создания архива
+				if [ `head -n1 $FileFlagOK | tr -d "\n"` == $TempOKTime ]
+				then
+					#Запускаем функцию удаления ненужных архивов (ротация архивов)
+					funArhRotation
+				else
+					printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" из источника "$SrcPath". Нк удалось обновить флаговый файл времени последнего удачного архива "$FileFlagOK" \n" >> $BackupLog
+					flagOKGlobal=false
+				fi
+			fi
 		else
 			printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" из источника "$SrcPath" Процесс создания архива прошел с ошибками \n" >> $BackupLog
 			flagOKGlobal=false
 			#Создаем имя для файла неудавшегося архива 
-			###?
+			ErrorArchFullName=$ArchFullName".error"
 
 			#Если файл с именем файла неудавшегося архива существует то удаляем его
 			###?
@@ -330,15 +382,19 @@ funArhCreation ()
 			#Переименовываем временный файл неудавшего архива
 			###?
 
-			#Создаем имя для файла журнала архива с поддержкой диференциальных копий
-			###?
-
-			#Если файл с именем файла журнала неудавшегося архива с поддержкой диференциальных копий существует то удаляем его
-			###?
-
-			#Eсли существует файл с именем временного журнала архива с поддержкой диференциальных копий то переименовываем его
-			###?
-
+			#Eсли был файл с временным журналом диференциальных копий то удаляем его
+			if [ -a $TempArchDiffName ] && [ ! -z $TempArchDiffName ]
+			then
+				`rm -f $TempArchDiffName 2>> $BackupLog`
+				if [ -a $TempArchDiffName ] && [ ! -z $TempArchDiffName ]
+				then
+					printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА СОЗДАНИЯ АРХИВА с именем: "$ArchFullName" из источника "$SrcPath". Не удалось удалить временный файл журнала поддержки диференциальных копий "$TempArchDiffName"\n" >> $BackupLog
+					flagOKGlobal=false
+					flagOKLocal=false
+				else
+					printf `(date +%Y-%m-%d-%H-%M-%S)`": Успешно удален временный файл журнала поддержки диференциальных копий "$TempArchDiffName" для архива с именем: "$ArchFullName" из источника "$SrcPath"\n" >> $BackupLog	
+				fi
+			fi
 		fi 
 	fi
 }
@@ -370,6 +426,19 @@ FileWorkCFG=$INSTALL_DIR"/work.cfg"
 if [ -a $FileWorkCFG ] && [ ! -z $FileWorkCFG ]
 then
 	echo "Запускаем скрипт в рабочем режиме"
+
+	InputParam=""
+
+	case $@ in
+		"daily" )
+		#Делаем ежедневный бекап - в эти дни запускаются только ежедневные бекапы несмотря на то сменилась неделя или месяц
+		InputParam="daily"
+			;;
+	esac
+	if [ -z $InputParam ]
+	then
+		InputParam="nodaily"
+	fi
 else
 	#Пишем всякое для пользователя-установщика
 	echo "Призводим установку скрипта "$SCRIPT_NAME
@@ -383,7 +452,8 @@ else
 	echo "#	2) путь к папке куда будем складывать архивы" >> $FileWorkCFG
 	echo "#	3) шаблон имени архива. К шаблогу будет добавлен суфикс типа (Daily, Weekly, Monthly) архива и дата арихива для получения имени архива" >> $FileWorkCFG
 	echo "#	4) full или diff - если full, то делаем все архивы будут полными; если diff, то ежедневные архивы всегда диференциальные относительно последнего полного архива " >> $FileWorkCFG 		
-	echo "#	5) сторка дополнительных параметров с разделителем |" >> $FileWorkCFG
+	echo "# 5) предельное время создания архива в часах - имеет смысл если полный архив создается более 24 часов в этом случае не будет ошибки в течении указанного времени" >> $FileWorkCFG 
+	echo "#	6) сторка дополнительных параметров с разделителем |" >> $FileWorkCFG
 	echo "#		a) количество ежедневных копий" >> $FileWorkCFG
 	echo "#		c) количество еженедельных копий (необязательный параметр)" >> $FileWorkCFG
 	echo "#		d) количество ежемесячных копий (необязательный параметр)" >> $FileWorkCFG
@@ -393,18 +463,21 @@ else
 	echo "# /mnt/BackUp/Plex/" >> $FileWorkCFG
 	echo "# plexSettings" >> $FileWorkCFG
 	echo "# full" >> $FileWorkCFG
+	echo "# 0" >> $FileWorkCFG
 	echo "# 40" >> $FileWorkCFG
 	echo "#" >> $FileWorkCFG
 	echo "# /usr/plex" >> $FileWorkCFG
 	echo "# /mnt/Bаckup/Plex/" >> $FileWorkCFG
 	echo "# plexProg" >> $FileWorkCFG
 	echo "# full" >> $FileWorkCFG
+	echo "# 47" >> $FileWorkCFG
 	echo "# 4|4|6" >> $FileWorkCFG
 	echo "#" >> $FileWorkCFG
 	echo "# /home/user/temp" >> $FileWorkCFG
 	echo "# /mnt/Backup/НomeUserTemp/" >> $FileWorkCFG
 	echo "# HomeUserTemp" >> $FileWorkCFG
 	echo "# diff" >> $FileWorkCFG
+	echo "# 0" >> $FileWorkCFG
 	echo "# 3" >> $FileWorkCFG
 	echo "#" >> $FileWorkCFG
 	echo "# Первое задание архивации" >> $FileWorkCFG
@@ -440,8 +513,9 @@ else
 	#Пишем всякое для пользователя-установщика
 	if [ flagOKGlobal ]; 
 	then
-		echo "Для установки скрипта в cron запустите crontab -e и добавтье следующую строку для выполнения каждый день в 23.30"
-		echo "30 23 * * * "$INSTALL_DIR"/FileBackup"
+		echo "Для установки скрипта в cron запустите crontab -e и добавтье следующие строки для выполнения каждый день в 23.30"
+		echo "30 23 * * 5 "$INSTALL_DIR"/FileBackup"
+		echo "30 23 * * 0-4,6 "$INSTALL_DIR"/FileBackup daily"
 		echo "Задания на архивирование задайте в файле work.cfg"
 	else
 		echo "Во время установки скрипта возникли ошибки!!!"
@@ -539,6 +613,11 @@ then
 				;;
 
 			"5" )
+			ArhTime=$NextListElement
+			SrcListStringIterator="6"
+				;;
+
+			"6" )
 			ExtParams=$NextListElement
 			SrcListStringIterator="1"
 
@@ -582,8 +661,6 @@ then
 		printf `(date +%Y-%m-%d-%H-%M-%S)`": ВСЕ ЗАДАНИЯ АРХИВИРОВАНИЯ ВЫПОЛНЕННЫ УСПЕШНО" >> $BackupLog
 		cat /dev/null > $ErrorLog
 		###? сообщаем о успешном выполнении резервного копирования
-
-		###? пишем в флаг файл дату и время последнего успешного завершения резервного копирования
 
 	else
 		echo "ПРИ ВЫПОЛНЕНИИ ЗАДАНИЙ АРХИВИРОВАНИЯ БЫЛИ ОБНАРУЖЕНЫ ОШИБКИ. Подробности выполнения смотрте в логе "$ErrorLog
