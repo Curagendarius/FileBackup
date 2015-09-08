@@ -169,9 +169,21 @@ funArhCreation ()
 	 		ArhDiffSufix=`echo ${ArchNameDiffFull##*/} | sed 's/.diff//g' | rev | cut -c 1-22 | rev`
 	 	else
 	 		#Если опорного архива нет то будем делать или weekly или monthly full
-	 		#Но если настройками назначены только daily и при этом поставлен режим diff - то сообщаем админу о шибке 
-	 		###?
-	 		flagFullNow=true		
+	 		#Но если настройками назначены только daily и при этом поставлен режим diff - то сообщаем админу о шибке
+	 		if [ $ArhNumWeekly != "0" ]
+	 		then
+	 			ArhSufix="weekly"
+	 			flagFullNow=true
+	 		else
+	 			if [ $ArhNumMonthly != "0" ]
+	 			then
+	 				ArhSufix="monthly"
+	 				flagFullNow=true
+	 			else
+	 				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА: Настройки архива с шаблоном "$ArchPath$ArchTemplate" выполненны неверно. При диференциальной резервной копии должен быть запланироваг хотя бы один ежедневный или ежемесячный архив. \n" >> $BackupLog
+	 				flagOKGlobal=false
+	 			fi
+	 		fi		
 	 	fi
 	fi 
 
@@ -377,10 +389,42 @@ funArhCreation ()
 			ErrorArchFullName=$ArchFullName".error"
 
 			#Если файл с именем файла неудавшегося архива существует то удаляем его
-			###?
+			if [ -a $ErrorArchFullName ] && [ ! -z $ErrorArchFullName ]
+			then
+				`rm -f $ErrorArchFullName 2>> $BackupLog`
+				### Если удалить файл не получилось то ошибка
+	 			if [ -a $ErrorArchFullName ] && [ ! -z $ErrorArchFullName ]
+	 			then
+	 				printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА: Файл с именем "$ErrorArchFullName" занят. Поэтому не удалось скопировать неудачную копию архива "$ArchFullName".\n" >> $BackupLog
+	 				#Так как имя фалйа неудавшегося архива занято, то удаляем временную копию архива
+	 				`rm -f $TempArchDiffName  2>> $BackupLog`
+					if [ -a $TempArchDiffName ] && [ ! -z $TempArchDiffName ]
+					then
+						printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА: Не удалось удалить временный файл неудавшегося архива "$ArchNameDiffFull"  "$TempArchDiffName"\n" >> $BackupLog
+					else
+						printf `(date +%Y-%m-%d-%H-%M-%S)`": Временный файл архива "$ArchFullName" успешно удален. \n" >> $BackupLog	
+					fi
+	 			else
+	 				#Переименовываем временный файл неудавшего архива
+	 				`mv $TempArchFullName $ErrorArchFullName`
+	 				if [ -a $ErrorArchFullName ] && [ ! -z $ErrorArchFullName ]
+					then
+						printf `(date +%Y-%m-%d-%H-%M-%S)`": Временный файл неудавшегосчя архива "$ArchFullName" успешно переименован в файл "$ErrorArchFullName"\n" >> $BackupLog	
 
-			#Переименовываем временный файл неудавшего архива
-			###?
+						
+					else
+						printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА: Не удалось переименовать временный файл неудавшегося архива "$ArchNameDiffFull"  "$TempArchDiffName"\n" >> $BackupLog	
+						#Так как не удалось переименовать то удаляем временный файл архива
+						`rm -f $TempArchDiffName  2>> $BackupLog`
+						if [ -a $TempArchDiffName ] && [ ! -z $TempArchDiffName ]
+						then
+							printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА: Не удалось удалить временный файл неудавшегося архива "$ArchNameDiffFull"  "$TempArchDiffName"\n" >> $BackupLog
+						else
+							printf `(date +%Y-%m-%d-%H-%M-%S)`": Временный файл архива "$ArchFullName" успешно удален. \n" >> $BackupLog	
+						fi
+					fi
+	 			fi
+	 		fi			
 
 			#Eсли был файл с временным журналом диференциальных копий то удаляем его
 			if [ -a $TempArchDiffName ] && [ ! -z $TempArchDiffName ]
