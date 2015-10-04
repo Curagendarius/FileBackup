@@ -467,13 +467,8 @@ ErrorLog="/var/log/FileBackupERROR.log"
 FileWorkCFG=$INSTALL_DIR"/work.cfg"
 
 #Если нет файла work.cfg то производим установку
-if [ -a $FileWorkCFG ] && [ ! -z $FileWorkCFG ]
+if [ -a $FileWorkCFG ] && [ ! -z $FileWorkCFG ] 
 then
-	# Проверяем можем ли читать файл work.cfg
-	if [ -r ]
-	then
-		#statements
-	fi
 	echo "Запускаем скрипт в рабочем режиме"
 
 	InputParam=""
@@ -487,6 +482,16 @@ then
 	if [ -z $InputParam ]
 	then
 		InputParam="nodaily"
+	fi
+
+	# Проверяем можем ли читать файл work.cfg
+	if [ -r $FileWorkCFG ]
+	then
+		echo "Файл настроек найдени читается - начинаем реботу по резервному копированию"
+	else
+		echo "Файл настроек найдени но не читается - прерываем работу"
+		printf `(date +%Y-%m-%d-%H-%M-%S)`": ОШИБКА работы скрипта: Файл настроек найдени но не читается - прерываем работу \n" >> $BackupLog
+		flagOKGlobal=false
 	fi
 else
 	#Пишем всякое для пользователя-установщика
