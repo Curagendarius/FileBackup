@@ -469,6 +469,11 @@ FileWorkCFG=$INSTALL_DIR"/work.cfg"
 #Если нет файла work.cfg то производим установку
 if [ -a $FileWorkCFG ] && [ ! -z $FileWorkCFG ]
 then
+	# Проверяем можем ли читать файл work.cfg
+	if [ -r ]
+	then
+		#statements
+	fi
 	echo "Запускаем скрипт в рабочем режиме"
 
 	InputParam=""
@@ -696,6 +701,9 @@ then
 		esac
 	done
 
+	OkBackupNotificationScript=$INSTALL_DIR"/OKNotification.cfg"
+	ErrorBackupNotificationScript=$INSTALL_DIR"/ErrorNotification.cfg"
+
 	#Если все процессы архивирования прошли успешно, то очищаем лог ошибок. Если нет то отправляем лог текушей сессии с сообщением о ошибке по электронной почте 
 	#и добавляем содержимое текущего лога в лог о ошибках
 	if ( $flagOKGlobal = true );
@@ -705,6 +713,11 @@ then
 		printf `(date +%Y-%m-%d-%H-%M-%S)`": ВСЕ ЗАДАНИЯ АРХИВИРОВАНИЯ ВЫПОЛНЕННЫ УСПЕШНО" >> $BackupLog
 		cat /dev/null > $ErrorLog
 		###? сообщаем о успешном выполнении резервного копирования
+		if [ -x $OkBackupNotificationScript ]
+		then
+			. $OkBackupNotificationScript $BackupLog
+		fi
+
 
 	else
 		echo "ПРИ ВЫПОЛНЕНИИ ЗАДАНИЙ АРХИВИРОВАНИЯ БЫЛИ ОБНАРУЖЕНЫ ОШИБКИ. Подробности выполнения смотрте в логе "$ErrorLog
@@ -713,6 +726,9 @@ then
 		printf "____________________________________________\n" >> $ErrorLog
 		cat $BackupLog >> $ErrorLog
 		###? отправляем $BackupLog с сообщением о ошибке
-
+		if [ -x $ErrorBackupNotificationScript ]
+		then
+			. $ErrorBackupNotificationScript $BackupLog
+		fi
 	fi
 fi	
